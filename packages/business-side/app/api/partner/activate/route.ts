@@ -25,11 +25,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Already activated' }, { status: 400 });
   }
 
+  if (!partner.phone) {
+    return NextResponse.json(
+      { error: 'Partner phone number is required for M-Pesa activation' },
+      { status: 400 }
+    );
+  }
+
   const idempotencyKey = randomUUID();
 
   try {
     const stkPush = await initiateStkPush(
-      partner.phone || '254700000000',
+      partner.phone,
       Number(env.PARTNER_ACTIVATION_FEE ?? 1499),
       idempotencyKey
     );
@@ -38,7 +45,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       partner_id: partner.id,
       mpesa_checkout_id: stkPush.CheckoutRequestID ?? idempotencyKey,
       amount: Number(env.PARTNER_ACTIVATION_FEE ?? 1499),
-      phone: partner.phone || '',
+      phone: partner.phone,
       status: 'pending',
       idempotency_key: idempotencyKey,
     });

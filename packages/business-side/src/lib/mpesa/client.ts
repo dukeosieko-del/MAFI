@@ -10,7 +10,24 @@ interface MpesaResponse<T> {
 }
 
 function generateTimestamp(): string {
-  return new Date().toISOString().replace(/[:.-]/g, '').slice(0, 14);
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return (
+    now.getFullYear().toString() +
+    pad(now.getMonth() + 1) +
+    pad(now.getDate()) +
+    pad(now.getHours()) +
+    pad(now.getMinutes()) +
+    pad(now.getSeconds())
+  );
+}
+
+function normalizePhone(phone: string): string {
+  const cleaned = phone.replace(/\s+/g, '');
+  let p = cleaned.startsWith('+') ? cleaned.slice(1) : cleaned;
+  if (p.startsWith('0')) p = `254${p.slice(1)}`;
+  if (!p.startsWith('254')) p = `254${p}`;
+  return p;
 }
 
 function buildPassword(): string {
@@ -104,6 +121,8 @@ export async function initiateStkPush(
 ): Promise<MpesaResponse<{ CheckoutRequestID: string }>> {
   const timestamp = generateTimestamp();
   const password = buildPassword();
+  const normalizedPhone = normalizePhone(phone);
+  const callbackUrl = `${env.NEXT_PUBLIC_SITE_URL}/api/partner/activate/callback`;
 
   const result = await callMpesa<{ CheckoutRequestID: string }>(
     '/mpesa/stkpush/v1/processrequest',
@@ -113,10 +132,11 @@ export async function initiateStkPush(
       Timestamp: timestamp,
       TransactionType: 'CustomerPayBillOnline',
       Amount: amount,
-      PartyA: phone,
+      PartyA: normalizedPhone,
       PartyB: mpesaConfig.shortcode,
-      PhoneNumber: phone,
-      ReturnURL: `${env.NEXT_PUBLIC_SITE_URL}/api/partner/activate/callback`,
+      PhoneNumber: normalizedPhone,
+      CallBackURL: callbackUrl,
+      QueueTimeOutURL: callbackUrl,
       InvoiceNo: idempotencyKey,
       OrgAccountReference: idempotencyKey,
       TransactionDesc: 'Account activation',

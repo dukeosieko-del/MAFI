@@ -107,6 +107,12 @@ export default function MpesaModal({ isOpen, onClose, requiredAmount, serviceNam
             return;
           }
 
+          if (statusData.terminal) {
+            throw new Error(
+              "This payment session has expired or was not recognised. Please try again."
+            );
+          }
+
           if (Date.now() - startTime >= POLL_TIMEOUT) {
             throw new Error("Payment timed out. Please check your phone and try again.");
           }
