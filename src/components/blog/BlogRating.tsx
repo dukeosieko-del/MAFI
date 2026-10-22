@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/components/AuthContext";
 import RatingStars from "./RatingStars";
 import RatingInput from "./RatingInput";
@@ -22,6 +23,7 @@ export default function BlogRating({
   const [average, setAverage] = useState<number | null>(initialAverage);
   const [count, setCount] = useState(initialCount);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { user, session } = useAuth();
 
   const handleSubmitRating = async (rating: number) => {
