@@ -10,11 +10,13 @@ import BlogComments from "@/components/blog/BlogComments";
 import ArticleContent from "@/components/blog/ArticleContent";
 import PopupOffer from "@/components/blog/PopupOffer";
 import Link from "next/link";
+import Image from "next/image";
 import { Clock, Eye } from "@/components/blog/icons";
 import { getPostBySlug, blogPosts } from "@/lib/blog/data";
 import type { BlogPost } from "@/lib/blog/types";
 import type { BlogPostListItem } from "@/lib/blog/queries";
 import { SITE_URL } from "../../lib/config";
+import { getPlatformAvatar } from "@/lib/platform-avatars";
 
 function toListItem(post: typeof blogPosts[0]): BlogPostListItem {
   return {
@@ -42,6 +44,44 @@ function toListItem(post: typeof blogPosts[0]): BlogPostListItem {
     average_rating: post.average_rating ?? null,
     rating_count: post.rating_count ?? 0,
   };
+}
+
+function getBlogPlatform(post: BlogPost): { platform: string | null; avatar: string | null } {
+  const slug = post.slug.toLowerCase();
+  const title = post.title.toLowerCase();
+  const category = post.category?.slug?.toLowerCase() || "";
+
+  if (slug.includes("blog-section") || slug.includes("smm-platform") || title.includes("navigate the janjez platform")) {
+    return { platform: null, avatar: null };
+  }
+  if (slug.includes("youtube") || title.includes("youtube") || category === "youtube") {
+    return { platform: "youtube", avatar: getPlatformAvatar("youtube") };
+  }
+  if (slug.includes("instagram") || title.includes("instagram") || category === "instagram") {
+    return { platform: "instagram", avatar: getPlatformAvatar("instagram") };
+  }
+  if (slug.includes("tiktok") || title.includes("tiktok") || category === "tiktok") {
+    return { platform: "tiktok", avatar: getPlatformAvatar("tiktok") };
+  }
+  if (slug.includes("facebook") || title.includes("facebook") || category === "facebook") {
+    return { platform: "facebook", avatar: getPlatformAvatar("facebook") };
+  }
+  if (slug.includes("twitter") || slug.includes("x-") || title.includes("x (twitter)") || title.includes("twitter") || category === "x") {
+    return { platform: "x", avatar: getPlatformAvatar("x") };
+  }
+  if (slug.includes("snapchat") || title.includes("snapchat")) {
+    return { platform: "snapchat", avatar: getPlatformAvatar("snapchat") };
+  }
+  if (slug.includes("whatsapp") || title.includes("whatsapp")) {
+    return { platform: "whatsapp", avatar: getPlatformAvatar("whatsapp") };
+  }
+  if (slug.includes("telegram") || title.includes("telegram")) {
+    return { platform: "telegram", avatar: getPlatformAvatar("telegram") };
+  }
+  if (slug.includes("google") || title.includes("google maps")) {
+    return { platform: "google-maps-reviews", avatar: getPlatformAvatar("google-maps-reviews") };
+  }
+  return { platform: null, avatar: null };
 }
 
 export const dynamic = "force-dynamic";
@@ -119,6 +159,7 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
     : null;
 
   const categoryColor = post.category?.color_hex || "#00A859";
+  const { avatar: platformAvatar } = getBlogPlatform(post);
 
   const getCTADisplay = () => {
     if (post.category?.slug === "instagram") {
@@ -186,9 +227,16 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
                 ))}
               </div>
 
-              <h1 className="text-3xl sm:text-4xl font-bold text-kenya-white mb-4 leading-tight">
-                {post.title}
-              </h1>
+              <div className="flex items-start gap-4 mb-4">
+                {platformAvatar && (
+                  <div className="flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-kenya-white/5 border border-kenya-white/10 flex items-center justify-center">
+                    <Image src={platformAvatar} alt={post.category?.name || "Platform"} width={40} height={40} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
+                  </div>
+                )}
+                <h1 className="text-3xl sm:text-4xl font-bold text-kenya-white leading-tight flex-1">
+                  {post.title}
+                </h1>
+              </div>
 
               {post.excerpt && (
                 <p className="text-lg text-kenya-white/70 leading-relaxed mb-6">
