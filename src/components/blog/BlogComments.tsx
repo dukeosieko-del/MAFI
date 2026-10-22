@@ -15,7 +15,7 @@ export default function BlogComments({ postSlug }: BlogCommentsProps) {
   const [posting, setPosting] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, session } = useAuth();
 
   const fetchComments = useCallback(async () => {
     setLoading(true);
@@ -46,7 +46,7 @@ export default function BlogComments({ postSlug }: BlogCommentsProps) {
     try {
       const res = await fetch(`/api/blog/posts/${postSlug}/comments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
         body: JSON.stringify({ content: newComment }),
       });
       const data = await res.json();
@@ -77,7 +77,7 @@ export default function BlogComments({ postSlug }: BlogCommentsProps) {
     try {
       const res = await fetch(`/api/blog/comments/${parentId}/reply`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
         body: JSON.stringify({ content }),
       });
       const data = await res.json();
@@ -101,6 +101,7 @@ export default function BlogComments({ postSlug }: BlogCommentsProps) {
     try {
       const res = await fetch(`/api/blog/comments/${commentId}/report`, {
         method: "POST",
+        headers: { ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
       });
       const data = await res.json();
       if (data.ok) {

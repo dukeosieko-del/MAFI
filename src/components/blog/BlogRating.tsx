@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useAuth } from "@/components/AuthContext";
 import RatingStars from "./RatingStars";
 import RatingInput from "./RatingInput";
 import type { BlogPost } from "@/lib/blog/types";
@@ -22,7 +22,7 @@ export default function BlogRating({
   const [average, setAverage] = useState<number | null>(initialAverage);
   const [count, setCount] = useState(initialCount);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { user, session } = useAuth();
 
   const handleSubmitRating = async (rating: number) => {
     setSubmitting(true);
@@ -30,7 +30,7 @@ export default function BlogRating({
     try {
       const res = await fetch(`/api/blog/posts/${post.slug}/ratings`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
         body: JSON.stringify({ rating }),
       });
       const data = await res.json();
