@@ -159,16 +159,28 @@ export function UsersTab() {
   const { session } = useAuth();
   const [users, setUsers] = useState<ProfileShape[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    fetchWithTimeout("/api/admin/users?limit=50", { headers: authHeaders(session) })
-      .then((r) => r.json())
-      .then((data) => {
-        setUsers(data.users || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  const load = useCallback(async (p: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchWithTimeout(`/api/admin/users?page=${p}&limit=50`, { headers: authHeaders(session) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to load users");
+      setUsers(data.users || []);
+      setTotalPages(data.totalPages || 1);
+      setPage(p);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load users");
+    } finally {
+      setLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => { load(1); }, [load]);
 
   if (loading) return <div className="text-kenya-white/60 text-sm">Loading users...</div>;
 
@@ -185,11 +197,17 @@ export function UsersTab() {
   return (
     <div>
       <h2 className="text-xl font-bold text-kenya-white mb-4">Users</h2>
+      {error && <p className="text-kenya-red text-sm mb-4">{error}</p>}
       <DataTable
         headers={["Email", "Name", "Phone", "Wallet", "Role", "Verified", "Joined"]}
         rows={rows}
       />
-      {users.length === 0 && <p className="text-kenya-white/50 text-sm mt-4">No users found.</p>}
+      {users.length === 0 && !error && <p className="text-kenya-white/50 text-sm mt-4">No users found.</p>}
+      <div className="flex items-center gap-3 mt-4">
+        <button onClick={() => load(page - 1)} disabled={page <= 1} className="px-3 py-1.5 rounded bg-kenya-white/10 text-kenya-white disabled:opacity-40">Prev</button>
+        <span className="text-kenya-white/60 text-sm">Page {page} of {totalPages}</span>
+        <button onClick={() => load(page + 1)} disabled={page >= totalPages} className="px-3 py-1.5 rounded bg-kenya-white/10 text-kenya-white disabled:opacity-40">Next</button>
+      </div>
     </div>
   );
 }
@@ -198,16 +216,28 @@ export function OrdersTab() {
   const { session } = useAuth();
   const [orders, setOrders] = useState<OrderShape[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    fetchWithTimeout("/api/admin/orders?limit=50", { headers: authHeaders(session) })
-      .then((r) => r.json())
-      .then((data) => {
-        setOrders(data.orders || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  const loadOrders = useCallback(async (p: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchWithTimeout(`/api/admin/orders?page=${p}&limit=50`, { headers: authHeaders(session) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to load orders");
+      setOrders(data.orders || []);
+      setTotalPages(data.totalPages || 1);
+      setPage(p);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load orders");
+    } finally {
+      setLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => { loadOrders(1); }, [loadOrders]);
 
   const handleAction = async (orderId: string, action: "cancel" | "refill") => {
     const headers = { ...authHeaders(session), "Content-Type": "application/json" };
@@ -220,20 +250,13 @@ export function OrdersTab() {
       const data = await res.json();
       if (res.ok) {
         alert(`Action result: ${JSON.stringify(data.result)}`);
-        loadOrders();
+        loadOrders(page);
       } else {
         alert(`Error: ${data.error || "Failed to process action"}`);
       }
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : "Failed to process action"}`);
     }
-  };
-
-  const loadOrders = () => {
-    fetchWithTimeout("/api/admin/orders?limit=50", { headers: authHeaders(session) })
-      .then((r) => r.json())
-      .then((data) => setOrders(data.orders || []))
-      .catch(() => {});
   };
 
   if (loading) return <div className="text-kenya-white/60 text-sm">Loading orders...</div>;
@@ -279,11 +302,17 @@ export function OrdersTab() {
   return (
     <div>
       <h2 className="text-xl font-bold text-kenya-white mb-4">Orders</h2>
+      {error && <p className="text-kenya-red text-sm mb-4">{error}</p>}
       <DataTable
         headers={["Order ID", "User", "Service", "Amount", "Schedule", "Janjez Service", "Fulfillment", "Status", "Created", "Actions"]}
         rows={rows}
       />
-      {orders.length === 0 && <p className="text-kenya-white/50 text-sm mt-4">No orders found.</p>}
+      {orders.length === 0 && !error && <p className="text-kenya-white/50 text-sm mt-4">No orders found.</p>}
+      <div className="flex items-center gap-3 mt-4">
+        <button onClick={() => loadOrders(page - 1)} disabled={page <= 1} className="px-3 py-1.5 rounded bg-kenya-white/10 text-kenya-white disabled:opacity-40">Prev</button>
+        <span className="text-kenya-white/60 text-sm">Page {page} of {totalPages}</span>
+        <button onClick={() => loadOrders(page + 1)} disabled={page >= totalPages} className="px-3 py-1.5 rounded bg-kenya-white/10 text-kenya-white disabled:opacity-40">Next</button>
+      </div>
     </div>
   );
 }
@@ -292,16 +321,28 @@ export function LogsTab() {
   const { session } = useAuth();
   const [logs, setLogs] = useState<LogShape[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    fetchWithTimeout("/api/admin/logs?limit=100", { headers: authHeaders(session) })
-      .then((r) => r.json())
-      .then((data) => {
-        setLogs(data.logs || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  const load = useCallback(async (p: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchWithTimeout(`/api/admin/logs?page=${p}&limit=100`, { headers: authHeaders(session) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to load logs");
+      setLogs(data.logs || []);
+      setTotalPages(data.totalPages || 1);
+      setPage(p);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load logs");
+    } finally {
+      setLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => { load(1); }, [load]);
 
   if (loading) return <div className="text-kenya-white/60 text-sm">Loading logs...</div>;
 
@@ -317,11 +358,17 @@ export function LogsTab() {
   return (
     <div>
       <h2 className="text-xl font-bold text-kenya-white mb-4">Activity Logs</h2>
+      {error && <p className="text-kenya-red text-sm mb-4">{error}</p>}
       <DataTable
         headers={["ID", "Actor", "Action", "Target Type", "Target ID", "Timestamp"]}
         rows={rows}
       />
-      {logs.length === 0 && <p className="text-kenya-white/50 text-sm mt-4">No logs found.</p>}
+      {logs.length === 0 && !error && <p className="text-kenya-white/50 text-sm mt-4">No logs found.</p>}
+      <div className="flex items-center gap-3 mt-4">
+        <button onClick={() => load(page - 1)} disabled={page <= 1} className="px-3 py-1.5 rounded bg-kenya-white/10 text-kenya-white disabled:opacity-40">Prev</button>
+        <span className="text-kenya-white/60 text-sm">Page {page} of {totalPages}</span>
+        <button onClick={() => load(page + 1)} disabled={page >= totalPages} className="px-3 py-1.5 rounded bg-kenya-white/10 text-kenya-white disabled:opacity-40">Next</button>
+      </div>
     </div>
   );
 }
@@ -330,16 +377,28 @@ export function LedgerTab() {
   const { session } = useAuth();
   const [ledger, setLedger] = useState<LedgerShape[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    fetchWithTimeout("/api/admin/ledger?limit=100", { headers: authHeaders(session) })
-      .then((r) => r.json())
-      .then((data) => {
-        setLedger(data.ledger || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  const load = useCallback(async (p: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchWithTimeout(`/api/admin/ledger?page=${p}&limit=100`, { headers: authHeaders(session) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to load ledger");
+      setLedger(data.ledger || []);
+      setTotalPages(data.totalPages || 1);
+      setPage(p);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load ledger");
+    } finally {
+      setLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => { load(1); }, [load]);
 
   if (loading) return <div className="text-kenya-white/60 text-sm">Loading ledger...</div>;
 
@@ -356,11 +415,17 @@ export function LedgerTab() {
   return (
     <div>
       <h2 className="text-xl font-bold text-kenya-white mb-4">Ledger</h2>
+      {error && <p className="text-kenya-red text-sm mb-4">{error}</p>}
       <DataTable
         headers={["ID", "Type", "Category", "Amount", "User", "Description", "Timestamp"]}
         rows={rows}
       />
-      {ledger.length === 0 && <p className="text-kenya-white/50 text-sm mt-4">No ledger entries found.</p>}
+      {ledger.length === 0 && !error && <p className="text-kenya-white/50 text-sm mt-4">No ledger entries found.</p>}
+      <div className="flex items-center gap-3 mt-4">
+        <button onClick={() => load(page - 1)} disabled={page <= 1} className="px-3 py-1.5 rounded bg-kenya-white/10 text-kenya-white disabled:opacity-40">Prev</button>
+        <span className="text-kenya-white/60 text-sm">Page {page} of {totalPages}</span>
+        <button onClick={() => load(page + 1)} disabled={page >= totalPages} className="px-3 py-1.5 rounded bg-kenya-white/10 text-kenya-white disabled:opacity-40">Next</button>
+      </div>
     </div>
   );
 }
