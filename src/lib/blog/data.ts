@@ -224,24 +224,24 @@ export const blogPosts: BlogPost[] = [
   },
   {
     id: "post-002",
-    slug: "youtube-monetization-2025-adsense-revenue",
-    title: "YouTube Monetization in 2025: From 0 to AdSense Revenue",
+    slug: "youtube-monetization-2026-adsense-revenue",
+    title: "YouTube Monetization in 2026: From 0 to AdSense Revenue",
     excerpt:
-      "Learn the exact requirements, content strategies, and timeline to join the YouTube Partner Program and start earning real AdSense revenue in 2025.",
+      "Learn the exact requirements, content strategies, and timeline to join the YouTube Partner Program and start earning real AdSense revenue in 2026.",
     content: JSON.stringify([
       {
         type: "paragraph",
         content:
-          "YouTube remains the world's second-largest search engine and one of the most lucrative platforms for creators who crack the monetization code. In 2025, the <strong>YouTube Partner Program (YPP)</strong> is more competitive than ever, but with the right strategy, consistent upload schedule, and a little help from janjez.social's YouTube services, reaching that first AdSense paycheck is absolutely achievable. This guide walks you through the official requirements, content pillars that convert viewers into subscribers, and the timeline you should expect from zero to monetization.",
+          "YouTube remains the world's second-largest search engine and one of the most lucrative platforms for creators who crack the monetization code. In 2026, the <strong>YouTube Partner Program (YPP)</strong> is more competitive than ever, but with the right strategy, consistent upload schedule, and a little help from janjez.social's YouTube services, reaching that first AdSense paycheck is absolutely achievable. This guide walks you through the official requirements, content pillars that convert viewers into subscribers, and the timeline you should expect from zero to monetization.",
       },
       {
         type: "heading",
-        content: "The Official YPP Requirements (2025)",
+        content: "The Official YPP Requirements (2026)",
       },
       {
         type: "paragraph",
         content:
-          "Before you earn a single shilling from AdSense, your channel must meet YouTube's baseline criteria. As of 2025, these are the non-negotiables:</p><ul><li><strong>1,000 subscribers</strong> — your audience must find enough value in your content to hit this milestone.</li><li><strong>4,000 watch hours</strong> — measured over the last 365 days, this demonstrates consistent viewer retention.</li><li><strong>1,000 Shorts views</strong> — an alternative pathway for Shorts-first channels.</li><li><strong>Adherence to Community Guidelines</strong> — zero active strikes, no repetitive copyrighted content, and compliance with monetization policies.</li><li><strong>Two-step verification</strong> — required on the Google account linked to your channel.</li><li><strong>AdSense account</strong> — linked and approved before payouts begin.</li></ul><p>These thresholds are designed to filter out low-effort channels. Your job is to build a channel that clearly delivers value, week after week.",
+          "Before you earn a single shilling from AdSense, your channel must meet YouTube's baseline criteria. As of 2026, these are the non-negotiables:</p><ul><li><strong>1,000 subscribers</strong> — your audience must find enough value in your content to hit this milestone.</li><li><strong>4,000 watch hours</strong> — measured over the last 365 days, this demonstrates consistent viewer retention.</li><li><strong>1,000 Shorts views</strong> — an alternative pathway for Shorts-first channels.</li><li><strong>Adherence to Community Guidelines</strong> — zero active strikes, no repetitive copyrighted content, and compliance with monetization policies.</li><li><strong>Two-step verification</strong> — required on the Google account linked to your channel.</li><li><strong>AdSense account</strong> — linked and approved before payouts begin.</li></ul><p>These thresholds are designed to filter out low-effort channels. Your job is to build a channel that clearly delivers value, week after week.",
       },
       {
         type: "image",
@@ -335,19 +335,19 @@ export const blogPosts: BlogPost[] = [
   },
   {
     id: "post-003",
-    slug: "viral-trends-x-twitter-2025",
-    title: "How to Create Viral Trends on X (Twitter) in 2025",
+    slug: "viral-trends-x-twitter-2026",
+    title: "How to Create Viral Trends on X (Twitter) in 2026",
     excerpt:
       "Master the X algorithm, craft shareable content, and use engagement loops to start trends that dominate timelines and grow your following.",
     content: JSON.stringify([
       {
         type: "paragraph",
         content:
-          "X (formerly Twitter) is the world's real-time conversation platform. In 2025, it remains the fastest way for brands, creators, and thought leaders to build authority, drive traffic, and create cultural moments. But going viral on X is not about luck — it is about understanding the algorithm, timing your posts for maximum visibility, and engineering shareability into every tweet. This guide covers the exact playbook used by accounts that consistently trend, plus how janjez.social's X services can amplify your reach from day one.",
+          "X (formerly Twitter) is the world's real-time conversation platform. In 2026, it remains the fastest way for brands, creators, and thought leaders to build authority, drive traffic, and create cultural moments. But going viral on X is not about luck — it is about understanding the algorithm, timing your posts for maximum visibility, and engineering shareability into every tweet. This guide covers the exact playbook used by accounts that consistently trend, plus how janjez.social's X services can amplify your reach from day one.",
       },
       {
         type: "heading",
-        content: "How the X Algorithm Works in 2025",
+        content: "How the X Algorithm Works in 2026",
       },
       {
         type: "paragraph",
@@ -356,7 +356,7 @@ export const blogPosts: BlogPost[] = [
       },
       {
         type: "image",
-        attrs: { src: "/blog/x-algorithm-2025.png", alt: "X algorithm signals diagram" },
+        attrs: { src: "/blog/x-algorithm-2026.png", alt: "X algorithm signals diagram" },
       },
       {
         type: "heading",
@@ -401,7 +401,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "paragraph",
         content:
-          "For official guidance on best practices, safety, and monetization on X, visit the <a href='https://help.twitter.com/en/safety-and-security' target='_blank' rel='noopener noreferrer'>X Help Center</a>. This resource covers policy updates, creator guidelines, and technical support. Pair this with janjez.social's services, and you have a complete growth stack for 2025.",
+          "For official guidance on best practices, safety, and monetization on X, visit the <a href='https://help.twitter.com/en/safety-and-security' target='_blank' rel='noopener noreferrer'>X Help Center</a>. This resource covers policy updates, creator guidelines, and technical support. Pair this with janjez.social's services, and you have a complete growth stack for 2026.",
       },
       {
         type: "paragraph",
@@ -450,7 +450,7 @@ export const blogPosts: BlogPost[] = [
   },
   {
     id: "post-004",
-    slug: "facebook-monetization-fast-2025",
+    slug: "facebook-monetization-fast-2026",
     title: "How to Get Monetized on Facebook Fast",
     excerpt:
       "Meet Facebook's monetization requirements, build a qualifying page, and start earning from in-stream ads, subscriptions, and branded content.",
@@ -458,7 +458,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "paragraph",
         content:
-          "Facebook monetization is no longer just for mega-influencers. With the right niche, consistent content, and a clear understanding of Facebook's partner programs, creators and page admins can start earning meaningful revenue within months. In 2025, Facebook offers multiple monetization pathways: <strong>In-Stream Ads</strong> for video creators, <strong>Facebook Subscriptions</strong> for loyal fan bases, <strong>Branded Content</strong> for sponsored posts, and <strong>Stars</strong> for live streamers. This guide explains each pathway, the exact eligibility criteria, and how janjez.social's Facebook services can help you hit the required thresholds faster.",
+          "Facebook monetization is no longer just for mega-influencers. With the right niche, consistent content, and a clear understanding of Facebook's partner programs, creators and page admins can start earning meaningful revenue within months. In 2026, Facebook offers multiple monetization pathways: <strong>In-Stream Ads</strong> for video creators, <strong>Facebook Subscriptions</strong> for loyal fan bases, <strong>Branded Content</strong> for sponsored posts, and <strong>Stars</strong> for live streamers. This guide explains each pathway, the exact eligibility criteria, and how janjez.social's Facebook services can help you hit the required thresholds faster.",
       },
       {
         type: "heading",
@@ -667,7 +667,7 @@ export const blogPosts: BlogPost[] = [
   },
   {
     id: "post-006",
-    slug: "avoid-instagram-bans-blocks-2025",
+    slug: "avoid-instagram-bans-blocks-2026",
     title: "How to Avoid Instagram Account Bans and Blocks",
     excerpt:
       "Protect your Instagram account from bans, shadowbans, and blocks with proven safety practices, guideline compliance, and smart growth strategies.",
@@ -675,7 +675,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "paragraph",
         content:
-          "Instagram is both a growth goldmine and a ban minefield. One wrong move — buying fake followers, using banned hashtags, or violating community guidelines — can result in a shadowban, temporary block, or permanent account deletion. In 2025, Instagram's enforcement is stricter than ever, with AI-powered detection systems that flag suspicious activity within hours. This guide teaches you how to grow safely, avoid common pitfalls, and recover quickly if you do get flagged. Bookmark the <a href='https://janjez.social/instagram-setup-guide' className='text-kenya-green'>Instagram Setup Guide</a> for platform-specific safety settings.",
+          "Instagram is both a growth goldmine and a ban minefield. One wrong move — buying fake followers, using banned hashtags, or violating community guidelines — can result in a shadowban, temporary block, or permanent account deletion. In 2026, Instagram's enforcement is stricter than ever, with AI-powered detection systems that flag suspicious activity within hours. This guide teaches you how to grow safely, avoid common pitfalls, and recover quickly if you do get flagged. Bookmark the <a href='https://janjez.social/instagram-setup-guide' className='text-kenya-green'>Instagram Setup Guide</a> for platform-specific safety settings.",
       },
       {
         type: "heading",
@@ -697,7 +697,7 @@ export const blogPosts: BlogPost[] = [
       {
         type: "paragraph",
         content:
-          "The safest way to grow on Instagram is to mimic organic behavior. Here are the rules:</p><ul><li><strong>Never buy followers from bot farms:</strong> Fake followers do not engage, which destroys your engagement rate and signals low quality to the algorithm. Use janjez.social's Instagram services instead — we source from real-engagement networks that comply with Instagram's terms.</li><li><strong>Limit automation tools:</strong> Third-party apps that auto-like, auto-comment, or auto-follow violate Instagram's Terms of Service. If Instagram detects automated behavior, your account is flagged immediately.</li><li><strong>Avoid banned hashtags:</strong> Instagram maintains a dynamic list of banned and restricted hashtags. Using them — even in comments — can trigger a shadowban. Check <a href='https://www.instagram.com/security' target='_blank' rel='noopener noreferrer'>Instagram's Security page</a> for updates.</li><li><strong>Diversify your content mix:</strong> Accounts that only post reels or only post photos are more vulnerable. Mix carousels, reels, stories, and live videos to appear natural.</li><li><strong>Keep engagement natural:</strong> Reply to every comment within the first hour. Like and reply to stories from accounts in your niche. This signals authentic activity to Instagram's systems.</li></ul><p>These practices are not optional — they are survival skills on Instagram in 2025.",
+          "The safest way to grow on Instagram is to mimic organic behavior. Here are the rules:</p><ul><li><strong>Never buy followers from bot farms:</strong> Fake followers do not engage, which destroys your engagement rate and signals low quality to the algorithm. Use janjez.social's Instagram services instead — we source from real-engagement networks that comply with Instagram's terms.</li><li><strong>Limit automation tools:</strong> Third-party apps that auto-like, auto-comment, or auto-follow violate Instagram's Terms of Service. If Instagram detects automated behavior, your account is flagged immediately.</li><li><strong>Avoid banned hashtags:</strong> Instagram maintains a dynamic list of banned and restricted hashtags. Using them — even in comments — can trigger a shadowban. Check <a href='https://www.instagram.com/security' target='_blank' rel='noopener noreferrer'>Instagram's Security page</a> for updates.</li><li><strong>Diversify your content mix:</strong> Accounts that only post reels or only post photos are more vulnerable. Mix carousels, reels, stories, and live videos to appear natural.</li><li><strong>Keep engagement natural:</strong> Reply to every comment within the first hour. Like and reply to stories from accounts in your niche. This signals authentic activity to Instagram's systems.</li></ul><p>These practices are not optional — they are survival skills on Instagram in 2026.",
       },
       {
         type: "heading",
@@ -1106,7 +1106,7 @@ export const blogPosts: BlogPost[] = [
       },
       {
         type: "heading",
-        content: "Monetization Models That Work in 2025"
+        content: "Monetization Models That Work in 2026"
       },
       {
         type: "paragraph",
