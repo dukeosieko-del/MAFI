@@ -57,6 +57,9 @@ function getTransport(): Transporter {
     port,
     secure: false,
     auth: { user, pass },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 
   return cachedTransport;

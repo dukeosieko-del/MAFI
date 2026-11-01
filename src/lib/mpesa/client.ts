@@ -131,14 +131,22 @@ export async function initiateStkPush(params: StkPushParams): Promise<StkPushRes
     QueueTimeOutURL: params.callbackUrl,
   };
 
-  const res = await fetch(STK_PUSH_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const stkController = new AbortController();
+  const stkTimeout = setTimeout(() => stkController.abort(), 15000);
+  let res: Response;
+  try {
+    res = await fetch(STK_PUSH_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: stkController.signal,
+    });
+  } finally {
+    clearTimeout(stkTimeout);
+  }
 
   if (!res.ok) {
     const errorText = await res.text();
@@ -178,14 +186,22 @@ export async function queryStkStatus(checkoutRequestId: string): Promise<StkQuer
     CheckoutRequestID: checkoutRequestId,
   };
 
-  const res = await fetch(STK_QUERY_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const qController = new AbortController();
+  const qTimeout = setTimeout(() => qController.abort(), 15000);
+  let res: Response;
+  try {
+    res = await fetch(STK_QUERY_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: qController.signal,
+    });
+  } finally {
+    clearTimeout(qTimeout);
+  }
 
   if (!res.ok) {
     throw new Error(`M-Pesa status query failed: ${res.status} ${res.statusText}`);
