@@ -3920,3 +3920,54 @@ INTEGRATED — Complete dynamic walkthrough engine with 8 journey definitions
 ### Known Issues
 1. **Auth verification/reset password link routing** — email templates use `/auth/verify-email?token=...` but Supabase redirects to `/auth/callback?type=signup|recovery`
 2. **Profile route 404** — `/profile` route not implemented (feature gap)
+
+---
+
+## 23. 2026-11-01 — BUILD FREEZE DECLARATION
+
+**Operation type:** GOVERNANCE / PRESERVATION
+**Branch:** `post-launch-hardening`
+**HEAD:** `25d83be` (feat: add server-side pagination and error handling to admin tabs)
+**Production baseline:** `stable-build@4d3fe36`
+**Merge base:** `4d3fe36`
+
+### Freeze Scope
+1. Production release `stable-build@4d3fe36`
+2. Post-launch snapshot `post-launch-hardening@25d83be` (ancestors: 4a0526a, 82c2297, 4d3fe36)
+3. Application source code and business logic
+4. Database schemas, migrations and data
+5. Payment flows, provider integrations and authentication
+6. Build/deployment configuration
+7. Existing release and rollback artifacts
+8. This state document and freeze controls
+
+### Completed Change Log
+- **82c2297** — M-Pesa token/STK timeout (AbortController 15s), Brevo SMTP timeout (10s/10s/15s), PartyA/PartyB env-driven, drip-feed upsert, silent error logging
+- **4a0526a** — Blog publication dates updated 2025→2026 (18 replacements in src/lib/blog/data.ts)
+- **25d83be** — Admin pagination + error handling for UsersTab, OrdersTab, LogsTab, LedgerTab
+
+### Known Limitations (Explicit)
+- No admin-specific pagination regression tests
+- Service interactions not browser-verified (no Playwright/Chrome available)
+- Performance has no measured baseline or before/after results
+- Google OAuth real-account E2E remains pending
+- Brevo dashboard verification remains pending
+- 243 passing tests do not prove untested behaviors
+
+### Remaining Task Register
+| Task | Reason Open | Required Access | Acceptance Evidence | Freeze Status |
+|------|------------|-----------------|---------------------|---------------|
+| Brevo SMTP verification | Dashboard access needed | Brevo admin session | Sending IP + domain auth verified | Blocked by freeze |
+| Google OAuth E2E | Test Google account needed | Google test account + Supabase dashboard | Successful OAuth login + callback | Blocked by freeze |
+| Service interactions testing | No browser automation | Playwright/Chrome | Browser test evidence | Blocked by freeze |
+| Performance measurement | No Lighthouse/DevTools | Lighthouse or Chrome DevTools | Before/after metrics | Blocked by freeze |
+| Admin pagination tests | No @testing-library | @testing-library/react | Passing regression tests | Blocked by freeze |
+
+### Freeze Tag
+`janjez-freeze-20261101` → `25d83be`
+
+### Freeze Controls
+- No commits, pushes, deployments, migrations, or production modifications during freeze
+- Business Side integration exception requires owner approval
+- All changes require explicit owner authorization
+
