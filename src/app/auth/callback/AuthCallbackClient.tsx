@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 
 export default function AuthCallbackClient() {
   const router = useRouter();
@@ -10,7 +11,7 @@ export default function AuthCallbackClient() {
   const [error, setError] = useState<string | null>(null);
   const handled = useRef(false);
 
-  const next = searchParams.get("next") || "/services";
+  const next = safeRedirectPath(searchParams.get("next"));
   const code = searchParams.get("code");
   const errorParam = searchParams.get("error_description") || searchParams.get("error");
 

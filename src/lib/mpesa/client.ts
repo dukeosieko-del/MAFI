@@ -79,12 +79,20 @@ export async function getAccessToken(): Promise<string> {
   }
 
   const basicAuth = Buffer.from(`${key}:${secret}`).toString("base64");
-  const res = await fetch(TOKEN_URL, {
-    method: "GET",
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  let res: Response;
+  try {
+    res = await fetch(TOKEN_URL, {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+      },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     throw new Error(`M-Pesa token request failed: ${res.status} ${res.statusText}`);
@@ -114,8 +122,8 @@ export async function initiateStkPush(params: StkPushParams): Promise<StkPushRes
     Timestamp: timestamp,
     TransactionType: "CustomerBuyGoodsOnline",
     Amount: Math.round(params.amount),
-    PartyA: "1329148",
-    PartyB: "1799086",
+    PartyA: phone,
+    PartyB: shortCode,
     PhoneNumber: phone,
     CallBackURL: params.callbackUrl,
     AccountReference: params.accountReference || `janjez-topup-${Date.now()}`,

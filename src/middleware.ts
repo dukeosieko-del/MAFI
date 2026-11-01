@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/middleware";
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 import { NextResponse } from "next/server";
 
 const CSP_HEADER =
@@ -55,20 +56,14 @@ export async function middleware(request: Request) {
         .maybeSingle();
 
       if (!profile || profile.role !== "admin") {
-        const response = NextResponse.next();
+        const response = NextResponse.redirect(new URL("/services", request.url));
         applySecurityHeaders(response, request.url);
         return response;
       }
     }
   }
 
-  const returnTo = (() => {
-    try {
-      return new URL(request.url).searchParams.get("next") || "/services";
-    } catch {
-      return "/services";
-    }
-  })();
+  const returnTo = safeRedirectPath(new URL(request.url).searchParams.get("next"));
 
   if (isAuthPage && user) {
     const response = NextResponse.redirect(new URL(returnTo, request.url));

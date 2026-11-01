@@ -100,10 +100,10 @@ describe("middleware route protection", () => {
     expect(res?._type).toBe("next");
   });
 
-  it("allows authenticated normal user to reach /admin (client handles non-admin redirect)", async () => {
+  it("redirects authenticated normal user away from /admin to /services", async () => {
     (globalThis as Record<string, unknown>).__mockUser = { id: "user-123", role: "user" };
     const res = await runMiddleware("/admin");
-    expect(res?._type).toBe("next");
+    expect(res?._type).toBe("redirect");
   });
 
   it("allows authenticated admin to access /admin", async () => {

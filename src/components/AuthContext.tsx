@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback, u
 import { createClient } from "@/lib/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { fetchWithTimeout } from "@/lib/client/fetchWithTimeout";
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 
 interface Profile {
   id: string;
@@ -87,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const signOutRef = useRef<() => Promise<void>>(async () => {});
 
-  const loadProfile = useCallback(async (userId: string) => {
+  const loadProfile = useCallback(async (user: User) => {
     const client = supabase;
     if (!client) {
       setProfile(null);
@@ -95,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAdmin(false);
       return;
     }
-    const prof = await ensureProfile(client, { id: userId, email: "", user_metadata: {} } as User);
+    const prof = await ensureProfile(client, user);
     if (prof) {
       setProfile(prof);
       setWalletBalance(Number(prof.wallet_balance) || 0);
@@ -117,6 +118,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (typeof window !== "undefined") {
       try {
+        document.cookie.split(";").forEach((c) => {
+          const name = c.split("=")[0].trim();
+          if (name.startsWith("sb-")) {
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+          }
+        });
+      } catch (err) {
+        console.error("AuthContext: failed to clear cookies", err);
+      }
+      try {
         const keysToRemove: string[] = [];
         for (let i = 0; i < window.localStorage.length; i++) {
           const key = window.localStorage.key(i);
@@ -132,6 +143,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await clearAllLocalCaches();
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+    setWalletBalance(0);
+    setIsAdmin(false);
   }, [clearAllLocalCaches]);
 
   useEffect(() => {
@@ -157,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          await loadProfile(session.user.id);
+          await loadProfile(session.user);
         } else {
           setProfile(null);
           setWalletBalance(0);
@@ -174,8 +190,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    getSession();
-
     let subscription: { unsubscribe: () => void } | null = null;
 
     const initAuthListener = async () => {
@@ -187,7 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          await loadProfile(session.user.id);
+          await loadProfile(session.user);
         } else {
           setProfile(null);
           setWalletBalance(0);
@@ -216,6 +230,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initAuthListener();
+
+    // Register auth listener before getSession to avoid missing SIGNED_IN events
+    getSession();
 
     return () => {
       controller.abort();
@@ -274,12 +291,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     if (!user) return;
-    const userId = user.id;
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = setTimeout(async () => {
-      refreshTimerRef.current = null;
-      await loadProfile(userId);
-    }, REFRESH_DEBOUNCE_MS);
+    refreshTimerRef.current = null;
+    await loadProfile(user);
   }, [user, loadProfile]);
 
   useEffect(() => {
@@ -334,7 +348,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "")
         : window.location.origin;
 
-    const nextParam = new URLSearchParams(window.location.search).get("next");
+    const nextParam = safeRedirectPath(new URLSearchParams(window.location.search).get("next"));
     const redirectTo = `${canonicalOrigin}/auth/callback${nextParam ? `?next=${encodeURIComponent(nextParam)}` : ""}`;
 
     const { data, error } = await supabase.auth.signInWithOAuth({

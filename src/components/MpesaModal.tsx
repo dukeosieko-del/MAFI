@@ -138,6 +138,27 @@ export default function MpesaModal({ isOpen, onClose, requiredAmount, serviceNam
             return;
           }
 
+          // Terminal failure (wrong PIN, cancelled, insufficient funds, etc.):
+          // stop polling, mark as failed and let the user retry.
+          const resultCode = statusData.resultCode ? String(statusData.resultCode) : "";
+          const desc = String(statusData.description || "").toLowerCase();
+          const stillProcessing =
+            desc.includes("processing") || desc.includes("pending") || resultCode === "";
+          if (!stillProcessing && resultCode !== "0") {
+            try {
+              await fetchWithTimeout(`/api/mpesa/check-status`, {
+                method: "POST",
+                headers: token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" },
+                body: JSON.stringify({ checkoutRequestId: checkoutId, markFailed: true }),
+              });
+            } catch {
+              /* ignore */
+            }
+            setError(statusData.description || "Payment failed. Please try again.");
+            setStep("input");
+            return;
+          }
+
           if (Date.now() - startTime >= POLL_TIMEOUT) {
             throw new Error("Payment timed out. Please check your phone and try again.");
           }

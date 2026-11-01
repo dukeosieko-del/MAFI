@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  output: "standalone",
+  // output: "standalone", // removed for Vercel
   allowedDevOrigins: ["127.0.0.1"],
   trailingSlash: false,
   compress: true,

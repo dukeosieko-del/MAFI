@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { queryStkStatus, completeStkPayment, StkQueryResponse, StkCallbackMetadata } from "@/lib/mpesa/client";
 import { getUserFromRequest } from "@/lib/server/auth-helpers";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/server/rate-limiter";
 
 export const runtime = "nodejs";
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { checkoutRequestId } = body as { checkoutRequestId?: string };
+  const { checkoutRequestId, markFailed } = body as { checkoutRequestId?: string; markFailed?: boolean };
   if (!checkoutRequestId) {
     return NextResponse.json({ error: "checkoutRequestId is required" }, { status: 400 });
   }
@@ -89,6 +90,15 @@ export async function POST(request: NextRequest) {
         credited = true;
       } catch (creditError) {
         console.error("Failed to credit wallet:", creditError);
+      }
+    } else if (markFailed) {
+      const supabase = createAdminClient();
+      if (supabase) {
+        await supabase
+          .from("wallet_transactions")
+          .update({ status: "failed", notes: result.ResultDesc || "M-Pesa payment failed" })
+          .eq("reference", checkoutRequestId)
+          .eq("status", "pending");
       }
     }
 

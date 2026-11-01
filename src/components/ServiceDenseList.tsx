@@ -60,6 +60,18 @@ export default function ServiceDenseList({ services }: ServiceDenseListProps) {
         <label className="block text-xs font-semibold text-kenya-white/60 uppercase tracking-wider mb-2">
           Select Category
         </label>
+        <select
+          value={selectedPlatform}
+          onChange={(e) => setSelectedPlatform(e.target.value)}
+          className="w-full max-w-full mb-3 bg-kenya-black border border-kenya-white/30 rounded-md px-3 py-2 text-kenya-white focus:outline-none focus:border-kenya-green"
+        >
+          <option value="all">All Platforms</option>
+          {KNOWN_PLATFORMS.map((platform) => (
+            <option key={platform} value={platform}>
+              {platform.charAt(0).toUpperCase() + platform.slice(1).replace(/-/g, " ")}
+            </option>
+          ))}
+        </select>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setSelectedPlatform("all")}

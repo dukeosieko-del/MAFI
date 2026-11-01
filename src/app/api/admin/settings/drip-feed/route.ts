@@ -56,8 +56,7 @@ export async function PATCH(request: NextRequest) {
     const body = (await request.json()) as Partial<DripFeedLimits>;
     const { data, error } = await supabase
       .from("platform_settings")
-      .update({ value: body })
-      .eq("key", "drip_feed_limits")
+      .upsert({ key: "drip_feed_limits", value: body }, { onConflict: "key" })
       .select()
       .single();
 
