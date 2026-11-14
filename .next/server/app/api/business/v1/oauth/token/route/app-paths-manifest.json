@@ -1,0 +1,3 @@
+{
+  "/api/business/v1/oauth/token/route": "app/api/business/v1/oauth/token/route.js"
+}

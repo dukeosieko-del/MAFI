@@ -1,0 +1,8 @@
+{
+  "pages": {},
+  "app": {
+    "[project]/janjez-socio/src/app/oauth/consent/page": []
+  },
+  "appUsingSizeAdjust": true,
+  "pagesUsingSizeAdjust": false
+}

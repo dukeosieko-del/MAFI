@@ -1,0 +1,3 @@
+{
+  "/api/business/v1/wallet/topup/route": "app/api/business/v1/wallet/topup/route.js"
+}

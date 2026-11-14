@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../../../../janjez-socio/src/app/lib/config.ts"],"sourcesContent":["export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || \"https://janjez.social\";\n"],"names":["SITE_URL"],"mappings":"yDAAwB,4BAAoC"}

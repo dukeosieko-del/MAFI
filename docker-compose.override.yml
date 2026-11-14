@@ -1,0 +1,43 @@
+# Local server override for the Docker Compose stack.
+#
+# 1. Ports: the host already runs this app natively (PM2 "janjez-app" on :3000
+#    and the system nginx on :80/:443), so the base compose ports collide.
+#    The container stack is remapped onto loopback-only alternate ports to
+#    avoid disrupting the live host services.
+#
+# 2. Build args: NEXT_PUBLIC_* values are inlined into the client bundle by
+#    "next build", and .env is excluded from the build context by
+#    .dockerignore, so they must be passed in explicitly at build time.
+#
+# 3. Environment: the base compose file passes BREVO_API_KEY, but the
+#    application reads BREVO_SMTP_KEY. These are the vars the app actually
+#    consumes and that the base file omits.
+services:
+  app:
+    build:
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_MPESA_ENV: ${NEXT_PUBLIC_MPESA_ENV}
+        NEXT_PUBLIC_GA_MEASUREMENT_ID: ${NEXT_PUBLIC_GA_MEASUREMENT_ID}
+        NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID}
+    ports: !override
+      - "127.0.0.1:3001:3000"
+    environment:
+      # The Next.js standalone server binds to process.env.HOSTNAME, which
+      # Docker sets to the container ID, so it only listens on the container's
+      # own IP. Pin it to 0.0.0.0 so the healthcheck on localhost:3000 works.
+      HOSTNAME: 0.0.0.0
+      MPESA_CALLBACK_URL: ${MPESA_CALLBACK_URL}
+      NEXT_PUBLIC_MPESA_ENV: ${NEXT_PUBLIC_MPESA_ENV}
+      NEXT_PUBLIC_GA_MEASUREMENT_ID: ${NEXT_PUBLIC_GA_MEASUREMENT_ID}
+      BREVO_SMTP_HOST: ${BREVO_SMTP_HOST}
+      BREVO_SMTP_PORT: ${BREVO_SMTP_PORT}
+      BREVO_SMTP_USER: ${BREVO_SMTP_USER}
+      BREVO_SMTP_KEY: ${BREVO_SMTP_KEY}
+      BREVO_FROM_NAME: ${BREVO_FROM_NAME}
+
+  nginx:
+    ports: !override
+      - "127.0.0.1:8080:80"

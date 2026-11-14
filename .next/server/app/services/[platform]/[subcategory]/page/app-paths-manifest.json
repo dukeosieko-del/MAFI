@@ -1,0 +1,3 @@
+{
+  "/services/[platform]/[subcategory]/page": "app/services/[platform]/[subcategory]/page.js"
+}

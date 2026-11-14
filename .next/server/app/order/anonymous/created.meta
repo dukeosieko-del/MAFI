@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/order/layout,_N_T_/order/anonymous/layout,_N_T_/order/anonymous/created/layout,_N_T_/order/anonymous/created/page,_N_T_/order/anonymous/created"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/order/anonymous/created/__PAGE__",
+    "/order/anonymous/created",
+    "/order/anonymous",
+    "/order",
+    "/_index",
+    "/_head"
+  ]
+}

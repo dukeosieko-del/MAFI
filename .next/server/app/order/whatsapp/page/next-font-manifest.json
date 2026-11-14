@@ -1,0 +1,8 @@
+{
+  "pages": {},
+  "app": {
+    "[project]/janjez-socio/src/app/order/whatsapp/page": []
+  },
+  "appUsingSizeAdjust": true,
+  "pagesUsingSizeAdjust": false
+}

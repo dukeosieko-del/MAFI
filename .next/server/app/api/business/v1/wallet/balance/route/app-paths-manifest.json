@@ -1,0 +1,3 @@
+{
+  "/api/business/v1/wallet/balance/route": "app/api/business/v1/wallet/balance/route.js"
+}

@@ -1,0 +1,19 @@
+{
+  "status": 307,
+  "headers": {
+    "location": "/admin/blog/articles?status=pending",
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/admin/layout,_N_T_/admin/blog/layout,_N_T_/admin/blog/pending/layout,_N_T_/admin/blog/pending/page,_N_T_/admin/blog/pending"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/admin/blog/pending/__PAGE__",
+    "/admin/blog/pending",
+    "/admin/blog",
+    "/admin",
+    "/_index",
+    "/_head"
+  ]
+}

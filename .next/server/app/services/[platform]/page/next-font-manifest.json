@@ -1,0 +1,8 @@
+{
+  "pages": {},
+  "app": {
+    "[project]/janjez-socio/src/app/services/[platform]/page": []
+  },
+  "appUsingSizeAdjust": true,
+  "pagesUsingSizeAdjust": false
+}

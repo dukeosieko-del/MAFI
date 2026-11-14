@@ -1,0 +1,3 @@
+{
+  "/api/orders/anonymous/route": "app/api/orders/anonymous/route.js"
+}
