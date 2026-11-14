@@ -108,15 +108,15 @@ export async function initiateStkPush(params: StkPushParams): Promise<StkPushRes
   const password = generatePassword(shortCode, passkey, timestamp);
   const phone = formatPhone(params.phoneNumber);
 
-  const body = {
-    BusinessShortCode: shortCode,
-    Password: password,
-    Timestamp: timestamp,
-    TransactionType: "CustomerBuyGoodsOnline",
-    Amount: Math.round(params.amount),
-    PartyA: "1329148",
-    PartyB: "1799086",
-    PhoneNumber: phone,
+    const body = {
+      BusinessShortCode: shortCode,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: "CustomerBuyGoodsOnline",
+      Amount: Math.round(params.amount),
+      PartyA: shortCode,
+      PartyB: phone,
+      PhoneNumber: phone,
     CallBackURL: params.callbackUrl,
     AccountReference: params.accountReference || `janjez-topup-${Date.now()}`,
     TransactionDesc: params.transactionDesc || "Wallet top-up",

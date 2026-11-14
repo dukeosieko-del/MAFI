@@ -95,7 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAdmin(false);
       return;
     }
-    const prof = await ensureProfile(client, { id: userId, email: "", user_metadata: {} } as User);
+    // Fetch the actual user from auth so profile creation uses real email/metadata
+    const { data: { user: authUser } } = await client.auth.getUser();
+    const prof = await ensureProfile(client, authUser ?? ({ id: userId, email: "", user_metadata: {} } as User));
     if (prof) {
       setProfile(prof);
       setWalletBalance(Number(prof.wallet_balance) || 0);
