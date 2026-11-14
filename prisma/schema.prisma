@@ -1,0 +1,457 @@
+// Prisma schema for janjez.social
+// Migrated from Supabase (project: rousjavuooduvicaobuv)
+// Database provider: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id                    String          @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  email                 String?
+  fullName              String?         @map("full_name")
+  phone                 String?
+  walletBalance         Decimal         @default(0) @db.Decimal(10, 2) @map("wallet_balance")
+  avatarUrl             String?         @map("avatar_url")
+  notificationEmail     Boolean         @default(true) @map("notification_email")
+  notificationSms       Boolean         @default(false) @map("notification_sms")
+  theme                 String          @default("dark")
+  language              String          @default("en")
+  username              String?         @unique
+  emailVerified         Boolean         @default(false) @map("email_verified")
+  role                  String          @default("user")
+  lastLowBalanceEmailAt DateTime?       @map("last_low_balance_email_at")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @default(now()) @map("updated_at")
+
+  orders                Order[]
+  walletTransactions    WalletTransaction[]
+  notifications         Notification[]
+  affiliateReferrals    AffiliateReferral[]       @relation("Referrer")
+  affiliateReferralsAsReferee AffiliateReferral[] @relation("Referee")
+  affiliateEarnings     AffiliateEarning[]
+  affiliateWithdrawals  AffiliateWithdrawal[]
+  blogPosts             BlogPost[]
+  blogRatings           BlogRating[]
+  blogComments          BlogComment[]
+  contactMessages       ContactMessage[]
+  blogPostViews         BlogPostView[]
+  serviceMappings       ServiceMapping[]
+
+  @@map("profiles")
+}
+
+model EmailVerification {
+  id        String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  userId    String   @db.Uuid @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("email_verifications")
+}
+
+model AdminActivityLog {
+  id         String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  actorId    String?  @db.Uuid @map("actor_id")
+  actorEmail String?  @map("actor_email")
+  action     String
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id")
+  details    Json?    @map("details")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("admin_activity_logs")
+}
+
+model Order {
+  id                   String     @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  userId               String     @db.Uuid @map("user_id")
+  serviceName          String     @map("service_name")
+  serviceId            String?    @map("service_id")
+  link                 String
+  quantity             Int
+  amount               Decimal    @db.Decimal(10, 2)
+  comments             String?
+  status               String     @default("pending")
+  paymentStatus        String     @default("unpaid") @map("payment_status")
+  category             String?
+  subcategory          String?
+  skuId                String?    @map("sku_id")
+  linkSubmitted        String?    @map("link_submitted")
+  amountPaid           Decimal?   @db.Decimal(10, 2) @map("amount_paid")
+  paymentReference     String?    @map("payment_reference")
+  refillGuarantee      String?    @map("refill_guarantee")
+  quantitySource       String?    @map("quantity_source")
+  orderId              String?    @map("order_id")
+  providerServiceId    String?    @map("provider_service_id")
+  providerOrderId      String?    @map("provider_order_id")
+  providerStatus       String?    @map("provider_status")
+  providerStartCount   String?    @map("provider_start_count")
+  providerRemains      String?    @map("provider_remains")
+  providerCurrency     String?    @default("USD") @map("provider_currency")
+  providerCharge       Decimal?   @db.Decimal(10, 5) @map("provider_charge")
+  fulfillmentStatus    String?    @default("pending") @map("fulfillment_status")
+  fulfillmentError     String?    @map("fulfillment_error")
+  fulfilledAt          DateTime?  @map("fulfilled_at")
+  retryCount           Int        @default(0) @map("retry_count")
+  nextRetryAt          DateTime?  @map("next_retry_at")
+  paymentMethod        String?    @map("payment_method")
+  catalogCategoryId    String?    @map("catalog_category_id")
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @default(now()) @map("updated_at")
+
+  profile              Profile    @relation(fields: [userId], references: [id])
+  fulfillmentLogs      FulfillmentLog[]
+  affiliateEarnings    AffiliateEarning[]
+
+  @@map("orders")
+}
+
+model WalletTransaction {
+  id             String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  userId         String   @db.Uuid @map("user_id")
+  type           String
+  amount         Decimal  @db.Decimal(10, 2)
+  currency       String   @default("KES")
+  reference      String?
+  status         String   @default("completed")
+  paymentMethod  String?  @map("payment_method")
+  mpesaReceipt   String?  @map("mpesa_receipt")
+  mpesaPhone     String?  @map("mpesa_phone")
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @map("updated_at")
+
+  profile        Profile  @relation(fields: [userId], references: [id])
+
+  @@map("wallet_transactions")
+}
+
+model Notification {
+  id        String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  userId    String   @db.Uuid @map("user_id")
+  type      String?
+  title     String
+  message   String?
+  link      String?
+  read      Boolean  @default(false)
+  audience  String   @default("user")
+  category  String   @default("system")
+  severity  String   @default("info")
+  body      String?
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile   Profile  @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model ProviderService {
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  name      String
+  type      String?
+  category  String?
+  rate      Decimal  @db.Decimal(10, 5)
+  min       Int
+  max       Int
+  refill    Boolean  @default(false)
+  cancel    Boolean  @default(false)
+  raw       Json?
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+
+  serviceMappings ServiceMapping[]
+
+  @@map("provider_services")
+}
+
+model ServiceMapping {
+  id             String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  platformId     String   @map("platform_id")
+  subcategoryName String   @map("subcategory_name")
+  deliverableName String   @map("deliverable_name")
+  providerServiceId String @map("provider_service_id")
+  matchReason    String   @default("cheapest") @map("match_reason")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @map("updated_at")
+  approvedBy     String?  @db.Uuid @map("approved_by")
+
+  providerService ProviderService @relation(fields: [providerServiceId], references: [id])
+  approvedByProfile Profile? @relation(fields: [approvedBy], references: [id])
+
+  @@unique([platformId, subcategoryName, deliverableName])
+  @@map("service_mappings")
+}
+
+model FulfillmentLog {
+  id               String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  orderId          String?  @db.Uuid @map("order_id")
+  providerOrderId  String?  @map("provider_order_id")
+  action           String
+  status           String
+  requestPayload   Json?    @map("request_payload")
+  responsePayload  Json?    @map("response_payload")
+  error            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  order            Order?   @relation(fields: [orderId], references: [id])
+
+  @@map("fulfillment_logs")
+}
+
+model JanjezService {
+  id                 String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  name               String
+  slug               String   @unique
+  category           String
+  subcategory        String?
+  description        String?
+  sellingPriceKsh    Decimal  @db.Decimal(10, 2) @map("selling_price_ksh")
+  providerServiceId  String   @map("provider_service_id")
+  minQuantity        Int      @map("min_quantity")
+  maxQuantity        Int      @map("max_quantity")
+  isActive           Boolean  @default(true) @map("is_active")
+  displayOrder       Int      @default(0) @map("display_order")
+  supportsDripFeed   Boolean  @default(false) @map("supports_drip_feed")
+  supportsRefill     Boolean  @default(false) @map("supports_refill")
+  supportsCancel     Boolean  @default(false) @map("supports_cancel")
+  showSidebar        Boolean  @default(false) @map("show_sidebar")
+  showLanding        Boolean  @default(false) @map("show_landing")
+  showGuarded        Boolean  @default(true) @map("show_guarded")
+  showAnonymous      Boolean  @default(true) @map("show_anonymous")
+  showCatalogue      Boolean  @default(true) @map("show_catalogue")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @default(now()) @map("updated_at")
+
+  @@map("janjez_services")
+}
+
+model BlogCategory {
+  id           String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  name         String   @unique
+  slug         String   @unique
+  description  String?
+  colorHex     String   @default("#00A859") @map("color_hex")
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  blogPosts BlogPost[]
+
+  @@map("blog_categories")
+}
+
+model BlogPost {
+  id             String     @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  slug           String     @unique
+  title          String
+  excerpt        String?
+  content        String?
+  coverImageUrl  String?    @map("cover_image_url")
+  authorId       String?    @db.Uuid @map("author_id")
+  categoryId     String?    @db.Uuid @map("category_id")
+  status         String     @default("draft")
+  visibility     String     @default("public")
+  isFeatured     Boolean    @default(false) @map("is_featured")
+  readingTimeMinutes Int   @default(1) @map("reading_time_minutes")
+  viewCount      Int        @default(0) @map("view_count")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @default(now()) @map("updated_at")
+  publishedAt    DateTime?  @map("published_at")
+  approvedAt     DateTime?  @map("approved_at")
+  approvedBy     String?    @db.Uuid @map("approved_by")
+  rejectionReason String?   @map("rejection_reason")
+
+  author         Profile?   @relation(fields: [authorId], references: [id])
+  category       BlogCategory? @relation(fields: [categoryId], references: [id])
+  blogPostTags   BlogPostTag[]
+  blogRatings    BlogRating[]
+  blogComments   BlogComment[]
+  blogPostViews  BlogPostView[]
+
+  @@map("blog_posts")
+}
+
+model BlogTag {
+  id        String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  name      String   @unique
+  slug      String   @unique
+
+  blogPostTags BlogPostTag[]
+
+  @@map("blog_tags")
+}
+
+model BlogPostTag {
+  postId String @db.Uuid @map("post_id")
+  tagId  String @db.Uuid @map("tag_id")
+
+  post   BlogPost @relation(fields: [postId], references: [id])
+  tag    BlogTag  @relation(fields: [tagId], references: [id])
+
+  @@id([postId, tagId])
+  @@map("blog_post_tags")
+}
+
+model BlogRating {
+  userId    String   @db.Uuid @map("user_id")
+  postId    String   @db.Uuid @map("post_id")
+  rating    Decimal  @db.Decimal(2, 1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  user   Profile @relation(fields: [userId], references: [id])
+  post   BlogPost @relation(fields: [postId], references: [id])
+
+  @@id([userId, postId])
+  @@map("blog_ratings")
+}
+
+model BlogComment {
+  id         String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  postId     String   @db.Uuid @map("post_id")
+  parentId   String?  @db.Uuid @map("parent_id")
+  userId     String?  @db.Uuid @map("user_id")
+  authorName String?  @map("author_name")
+  content    String
+  status     String   @default("pending")
+  isReported Boolean  @default(false) @map("is_reported")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  post   BlogPost    @relation(fields: [postId], references: [id])
+  parent BlogComment?  @relation("BlogCommentReplies", fields: [parentId], references: [id])
+  replies  BlogComment[] @relation("BlogCommentReplies")
+  user   Profile?    @relation(fields: [userId], references: [id])
+
+  @@map("blog_comments")
+}
+
+model BlogPostView {
+  id        String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  postId    String   @db.Uuid @map("post_id")
+  userId    String?  @db.Uuid @map("user_id")
+  ipHash    String?  @map("ip_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post BlogPost @relation(fields: [postId], references: [id])
+  user Profile? @relation(fields: [userId], references: [id])
+
+  @@map("blog_post_views")
+}
+
+model ContactMessage {
+  id          String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  name        String
+  email       String
+  subject     String
+  message     String
+  department  String   @default("general")
+  status      String   @default("new")
+  source      String   @default("contact_form")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  replyText   String?  @map("reply_text")
+  repliedAt   DateTime? @map("replied_at")
+  repliedBy   String?  @db.Uuid @map("replied_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
+
+  repliedByProfile Profile? @relation(fields: [repliedBy], references: [id])
+
+  @@map("contact_messages")
+}
+
+model AffiliateReferral {
+  id         String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  referrerId String   @db.Uuid @map("referrer_id")
+  refereeId  String?  @db.Uuid @map("referee_id")
+  refereeEmail String? @map("referee_email")
+  code       String
+  status     String   @default("pending")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  referrer   Profile @relation("Referrer", fields: [referrerId], references: [id])
+  referee    Profile? @relation("Referee", fields: [refereeId], references: [id])
+
+  @@map("affiliate_referrals")
+}
+
+model AffiliateEarning {
+  id        String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  referrerId String   @db.Uuid @map("referrer_id")
+  orderId   String?  @db.Uuid @map("order_id")
+  amount    Decimal  @db.Decimal(10, 2)
+  status    String   @default("pending")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  referrer Profile @relation(fields: [referrerId], references: [id])
+  order    Order?   @relation(fields: [orderId], references: [id])
+
+  @@map("affiliate_earnings")
+}
+
+model AffiliateWithdrawal {
+  id        String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  userId    String   @db.Uuid @map("user_id")
+  amount    Decimal  @db.Decimal(10, 2)
+  mpesaPhone String?  @map("mpesa_phone")
+  status    String   @default("pending")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [userId], references: [id])
+
+  @@map("affiliate_withdrawals")
+}
+
+model PasswordResetToken {
+  id        String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  userId    String   @db.Uuid @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("password_reset_tokens")
+}
+
+model SecurityEvent {
+  id        String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  userId    String   @db.Uuid @map("user_id")
+  eventType String   @map("event_type")
+  ip        String?
+  userAgent String?  @map("user_agent")
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("security_events")
+}
+
+model DripFeedSetting {
+  id         String   @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
+  enabled    Boolean  @default(true)
+  minRuns    Int      @map("min_runs")
+  maxRuns    Int      @map("max_runs")
+  minInterval Int     @map("min_interval")
+  maxInterval Int     @map("max_interval")
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  @@map("drip_feed_settings")
+}
+
+model PlatformSetting {
+  key        String @id
+  value      Json
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  @@map("platform_settings")
+}
