@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { listJanjezServices, getJanjezService, createJanjezService, updateJanjezService, deleteJanjezService, normalizeSlug } from "@/lib/janjez-services";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { prisma } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/server/auth-helpers";
 import { rateLimitAdmin } from "@/lib/server/rate-limiter";
 
@@ -71,27 +71,13 @@ export async function POST(request: NextRequest) {
 
     let resolvedSellingPrice = Number(selling_price_ksh);
     if (provider_service_id) {
-      const supabase = createAdminClient();
-      if (supabase) {
-        const { data: providerExists } = await supabase
-          .from("provider_services")
-          .select("id")
-          .eq("id", String(provider_service_id))
-          .single();
-        if (!providerExists) {
-          return NextResponse.json({ error: "Referenced provider service not found" }, { status: 400 });
-        }
-
-        if (!resolvedSellingPrice || resolvedSellingPrice <= 0) {
-          const { data: providerService } = await supabase
-            .from("provider_services")
-            .select("rate")
-            .eq("id", String(provider_service_id))
-            .single();
-          if (providerService && providerService.rate) {
-            resolvedSellingPrice = Math.round(Number(providerService.rate) * 13.7 * 100) / 100;
-          }
-        }
+      const rows = await prisma.$queryRawUnsafe(`SELECT "id","rate" FROM "provider_services" WHERE "id" = '${String(provider_service_id).replace(/'/g, "''")}' LIMIT 1`);
+      const providerExists = (rows as any[])[0];
+      if (!providerExists) {
+        return NextResponse.json({ error: "Referenced provider service not found" }, { status: 400 });
+      }
+      if (!resolvedSellingPrice || resolvedSellingPrice <= 0) {
+        resolvedSellingPrice = Math.round(Number(providerExists.rate) * 13.7 * 100) / 100;
       }
     }
 

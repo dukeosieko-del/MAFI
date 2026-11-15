@@ -189,7 +189,7 @@ export async function resolveJanjezService(
   const data = await prisma.$queryRawUnsafe(`
     SELECT
       "id", "name", "slug", "category", "subcategory", "description",
-      "selling_price_ksh", "janzez_service_id" as "provider_service_id",
+      "selling_price_ksh", "janzez_service_id", "provider_service_id",
       "min_quantity", "max_quantity", "supports_drip_feed", "supports_refill",
       "supports_cancel"
     FROM "janzez_services"
