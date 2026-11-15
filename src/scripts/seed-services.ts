@@ -12,6 +12,8 @@ const prisma =
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 const janzezServiceKey = Object.keys(prisma).find((k: string) => k.toLowerCase().includes('janze'));
+console.log('All prisma keys:', Object.keys(prisma).filter(k => !k.startsWith('$') && !k.startsWith('_')).join(','));
+console.log('Janzez key found:', janzezServiceKey);
 const janzezService = janzezServiceKey ? (prisma as any)[janzezServiceKey] : null;
 
 export function normalizeSlug(input: string): string {
