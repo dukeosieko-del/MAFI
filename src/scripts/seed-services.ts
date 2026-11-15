@@ -35,7 +35,8 @@ function loadProviderData(): any[] {
 }
 
 export async function seedServices() {
-  // Create table if it doesn't exist
+  // Drop and recreate table to ensure correct schema
+  await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "janzez_services" CASCADE`);
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "janzez_services" (
       "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
