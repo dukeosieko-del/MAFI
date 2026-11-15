@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     const numQuantity = Number(quantity);
 
     const services = await listJanjezServices(true, "show_anonymous");
-    const janjezService = services.find((s) => s.id === janzez_service_id) || null;
+    const janjezService = services.find((s) => s.provider_service_id === janzez_service_id) || null;
     if (!janjezService) {
       return NextResponse.json({ error: "Service not found or not available" }, { status: 404 });
     }

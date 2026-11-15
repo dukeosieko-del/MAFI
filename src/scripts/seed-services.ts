@@ -11,6 +11,16 @@ const prisma =
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
+export function normalizeSlug(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/, "") || "service";
+}
+
 function findSubcategory(svc: { categoryId: string; name: string; id: string }): string | null {
   for (const catalogItem of SERVICE_CATALOG) {
     if (catalogItem.id === svc.categoryId) {
@@ -25,16 +35,6 @@ function findSubcategory(svc: { categoryId: string; name: string; id: string }):
     }
   }
   return null;
-}
-
-function normalizeSlug(input: string): string {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/, "") || "service";
 }
 
 function sqlEscape(val: any): string {
@@ -119,4 +119,18 @@ export async function seedServices() {
   }
 
   return { created, total: ORDER_SERVICES.length };
+}
+
+if (require.main === module) {
+  seedServices()
+    .then((result) => {
+      console.log(
+        `Seeded ${result.created} services (${result.total} total).`
+      );
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error("Seed failed:", err);
+      process.exit(1);
+    });
 }

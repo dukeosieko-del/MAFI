@@ -13,6 +13,13 @@ import { getOrderCompletedEmail, getOrderFailedEmail } from "@/lib/email/templat
 import { createNotification } from "@/lib/notifications";
 import { creditWallet } from "@/lib/wallet";
 
+function sqlEscape(val: any): string {
+  if (val === null || val === undefined) return "NULL";
+  if (typeof val === "boolean") return val ? "true" : "false";
+  if (typeof val === "number") return String(val);
+  return `'${String(val).replace(/'/g, "''")}'`;
+}
+
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [60, 300, 900]; // 1min, 5min, 15min
 
@@ -166,31 +173,33 @@ export async function resolveJanjezService(
   const supabase = createAdminClient();
   if (!supabase) return null;
 
+  const conditions: string[] = ['"is_active" = true'];
   if (janzezServiceId) {
-    const data = await prisma.janjez_services.findFirst({
-      where: { id: janzezServiceId, is_active: true },
-      select: { id: true, name: true, slug: true, category: true, subcategory: true, description: true, sellingPriceKsh: true, providerServiceId: true, minQuantity: true, maxQuantity: true, supportsDripFeed: true, supportsRefill: true, supportsCancel: true },
-    });
-    if (!data) return null;
-    return data as unknown as JanzezServiceWithProvider;
-  }
-
-  let query: any = prisma.janjez_services.findFirst({
-    where: { is_active: true },
-    select: { id: true, name: true, slug: true, category: true, subcategory: true, description: true, sellingPriceKsh: true, providerServiceId: true, minQuantity: true, maxQuantity: true, supportsDripFeed: true, supportsRefill: true, supportsCancel: true },
-  });
-
-  if (skuId) {
-    (query as any).where = { ...(query as any).where, slug: skuId };
+    conditions.push(`"janzez_service_id" = ${sqlEscape(janzezServiceId)}`);
+  } else if (skuId) {
+    conditions.push(`"slug" = ${sqlEscape(skuId)}`);
   } else if (catalogCategoryId) {
-    (query as any).where = { ...(query as any).where, category: catalogCategoryId };
+    conditions.push(`"category" = ${sqlEscape(catalogCategoryId)}`);
   } else {
     return null;
   }
 
-  const data = await query;
-  if (!data) return null;
-  return data as unknown as JanzezServiceWithProvider;
+  const whereClause = conditions.join(" AND ");
+
+  const data = await prisma.$queryRawUnsafe(`
+    SELECT
+      "id", "name", "slug", "category", "subcategory", "description",
+      "selling_price_ksh", "janzez_service_id" as "provider_service_id",
+      "min_quantity", "max_quantity", "supports_drip_feed", "supports_refill",
+      "supports_cancel"
+    FROM "janzez_services"
+    WHERE ${whereClause}
+    LIMIT 1
+  `);
+
+  const rows = data as unknown as any[];
+  if (!rows || rows.length === 0) return null;
+  return rows[0] as unknown as JanzevServiceWithProvider;
 }
 
 export async function fulfillOrder(orderId: string) {
