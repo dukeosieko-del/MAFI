@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     if (profile.emailVerified) {
       await prisma.emailVerification.delete({ where: { id: verification.id } });
-      return NextResponse.redirect(new URL(`/auth/sign-in?verified=1&email=${encodeURIComponent(profile.email)}`, REDIRECT_BASE));
+    return NextResponse.redirect(new URL(`/auth/sign-in?verified=1&email=${encodeURIComponent(profile.email || "")}`, REDIRECT_BASE));
     }
 
     const { error: updateError } = await supabase.auth.admin.updateUserById(verification.userId, {
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     await prisma.emailVerification.delete({ where: { id: verification.id } });
 
-    return NextResponse.redirect(new URL(`/auth/sign-in?verified=1&email=${encodeURIComponent(profile.email)}`, REDIRECT_BASE));
+    return NextResponse.redirect(new URL(`/auth/sign-in?verified=1&email=${encodeURIComponent(profile.email || "")}`, REDIRECT_BASE));
   } catch {
     return NextResponse.redirect(new URL("/auth/sign-in?error=unexpected", REDIRECT_BASE));
   }
