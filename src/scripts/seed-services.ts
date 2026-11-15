@@ -37,46 +37,58 @@ function normalizeSlug(input: string): string {
     .replace(/^-+|-+$/, "") || "service";
 }
 
+function sqlEscape(val: any): string {
+  if (val === null || val === undefined) return "NULL";
+  if (typeof val === "boolean") return val ? "true" : "false";
+  if (typeof val === "number") return String(val);
+  return `'${String(val).replace(/'/g, "''")}'`;
+}
+
 export async function seedServices() {
+  // Clear existing services to avoid duplicates
+  await prisma.$executeRawUnsafe(`TRUNCATE TABLE "janzez_services" RESTART IDENTITY CASCADE`);
+
   let created = 0;
-  let skipped = 0;
 
   for (const svc of ORDER_SERVICES) {
     const slug = normalizeSlug(`${svc.categoryId}-${svc.id}`);
-
-    const existing = await prisma.janzezService.findUnique({ where: { slug } });
-    if (existing) {
-      skipped++;
-      continue;
-    }
-
     const subcategory = findSubcategory(svc);
+    const supportsRefill = svc.refill !== "No refill";
 
-    await prisma.janzezService.create({
-      data: {
-        janzezServiceId: svc.id,
-        name: svc.name,
-        slug,
-        category: svc.categoryId,
-        subcategory,
-        description: svc.description || null,
-        sellingPriceKsh: svc.rate,
-        minQuantity: svc.min,
-        maxQuantity: svc.max,
-        isActive: true,
-        displayOrder: 0,
-        supportsDripFeed: false,
-        supportsRefill: svc.refill !== "No refill",
-        supportsCancel: false,
-        showSidebar: false,
-        showLanding: false,
-        showGuarded: true,
-        showAnonymous: true,
-        showCatalogue: true,
-      },
-    });
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "janzez_services" (
+        "janzez_service_id", "name", "slug", "category", "subcategory",
+        "description", "selling_price_ksh", "min_quantity", "max_quantity",
+        "is_active", "display_order", "supports_drip_feed", "supports_refill",
+        "supports_cancel", "show_sidebar", "show_landing", "show_guarded",
+        "show_anonymous", "show_catalogue", "created_at", "updated_at"
+      ) VALUES (
+        gen_random_uuid(),
+        ${sqlEscape(svc.id)},
+        ${sqlEscape(svc.name)},
+        ${sqlEscape(slug)},
+        ${sqlEscape(svc.categoryId)},
+        ${sqlEscape(subcategory)},
+        ${sqlEscape(svc.description || null)},
+        ${sqlEscape(svc.rate)},
+        ${sqlEscape(svc.min)},
+        ${sqlEscape(svc.max)},
+        true,
+        0,
+        false,
+        ${supportsRefill},
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        now(),
+        now()
+      )
+    `);
     created++;
   }
 
-  return { created, skipped, total: ORDER_SERVICES.length };
+  return { created, total: ORDER_SERVICES.length };
 }

@@ -144,23 +144,30 @@ export async function listProviderServices(params: {
 }
 
 export async function listJanjezServices(activeOnly: boolean = false, placement?: keyof Pick<JanjezService, "show_sidebar" | "show_landing" | "show_guarded" | "show_anonymous" | "show_catalogue">): Promise<JanjezService[]> {
-  const where: any = {};
+  const conditions: string[] = [];
   if (activeOnly) {
-    where.isActive = true;
+    conditions.push('"is_active" = true');
   }
   if (placement) {
-    where[placement] = true;
+    conditions.push(`"${placement}" = true`);
   }
 
-  const all = await prisma.janzezService.findMany({
-    where,
-    orderBy: [
-      { displayOrder: "asc" },
-      { createdAt: "desc" },
-    ],
-  });
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  return all as unknown as JanjezService[];
+  const rows = await prisma.$queryRawUnsafe(`
+    SELECT
+      "id", "name", "slug", "category", "subcategory", "description",
+      "selling_price_ksh", "janzez_service_id" as "provider_service_id",
+      "min_quantity", "max_quantity", "is_active", "display_order",
+      "supports_drip_feed", "supports_refill", "supports_cancel",
+      "show_sidebar", "show_landing", "show_guarded", "show_anonymous",
+      "show_catalogue", "created_at", "updated_at"
+    FROM "janzez_services"
+    ${whereClause}
+    ORDER BY "display_order" ASC, "created_at" DESC
+  `);
+
+  return (rows as unknown as JanjezService[]);
 }
 
 export async function getJanjezService(id: string): Promise<JanjezService | null> {
