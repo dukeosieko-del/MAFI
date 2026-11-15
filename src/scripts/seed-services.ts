@@ -45,6 +45,34 @@ function sqlEscape(val: any): string {
 }
 
 export async function seedServices() {
+  // Create table if it doesn't exist
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "janzez_services" (
+      "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      "janzez_service_id" TEXT,
+      "name" TEXT,
+      "slug" TEXT UNIQUE,
+      "category" TEXT,
+      "subcategory" TEXT,
+      "description" TEXT,
+      "selling_price_ksh" DECIMAL(10,2),
+      "min_quantity" INT,
+      "max_quantity" INT,
+      "is_active" BOOLEAN DEFAULT true,
+      "display_order" INT DEFAULT 0,
+      "supports_drip_feed" BOOLEAN DEFAULT false,
+      "supports_refill" BOOLEAN DEFAULT false,
+      "supports_cancel" BOOLEAN DEFAULT false,
+      "show_sidebar" BOOLEAN DEFAULT false,
+      "show_landing" BOOLEAN DEFAULT false,
+      "show_guarded" BOOLEAN DEFAULT true,
+      "show_anonymous" BOOLEAN DEFAULT true,
+      "show_catalogue" BOOLEAN DEFAULT true,
+      "created_at" TIMESTAMP DEFAULT now(),
+      "updated_at" TIMESTAMP DEFAULT now()
+    )
+  `);
+
   // Clear existing services to avoid duplicates
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE "janzez_services" RESTART IDENTITY CASCADE`);
 
