@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
           const email = authUser?.user?.email;
           if (email) {
             const fullName =
-              ((authUser?.user?.user_metadata as { full_name?: string } | undefined)?.fullName) || null;
+              ((authUser?.user?.user_metadata as { fullName?: string } | undefined)?.fullName) || null;
             const { subject, html, text } = getPaymentReceivedEmail({
               customerName: fullName,
               amount: result.amount,
