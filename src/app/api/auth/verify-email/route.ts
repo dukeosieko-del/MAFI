@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     const welcomeResult = await sendTransactional({
       name: "user.welcome",
       userId: verification.userId,
-      email: profile.email,
+      email: profile.email || "",
       fullName,
       data: {
         fullName,
