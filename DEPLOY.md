@@ -14,8 +14,8 @@
    ```bash
    tar -xzf janjez-ec2-deploy.tar.gz
    cd ec2-deploy
-   cp .env.example .env.local
-   # Edit .env.local with real values
+   cp .env.example .env
+   # Edit .env with real values
    docker compose up -d --build
    ```
 
@@ -57,7 +57,7 @@ sudo certbot --nginx -d janjez.social -d www.janjez.social
 
 ## Post-Deploy Checklist
 - [ ] DNS points to EC2 IP
-- [ ] `.env.local` has real `SUPABASE_SERVICE_ROLE_KEY`
+- [ ] `.env` (Docker) or `.env.local` (systemd/PM2) has real `SUPABASE_SERVICE_ROLE_KEY`
 - [ ] SSL certificates installed via Certbot
 - [ ] `pm2 status` or `systemctl status janjez-socio` shows running
 - [ ] `sudo systemctl status nginx` shows active
@@ -69,8 +69,9 @@ NEXT_PUBLIC_SITE_URL=https://janjez.social
 NEXT_PUBLIC_SUPABASE_URL=https://snkgkcdnmhqaejpqftxn.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_9O06_TeEL6LQSFkUhQkBCA_FW1JdW0t
 SUPABASE_SERVICE_ROLE_KEY=<your-real-key>
-BREVO_API_KEY=
 BREVO_FROM_EMAIL=
+BREVO_SMTP_USER=
+BREVO_SMTP_KEY=
 MPESA_CONSUMER_KEY=
 MPESA_CONSUMER_SECRET=
 MPESA_PASSKEY=

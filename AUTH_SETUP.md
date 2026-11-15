@@ -21,8 +21,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-key
 
 **Optional (for email via Brevo):**
 ```env
-BREVO_API_KEY=
+BREVO_SMTP_HOST=smtp-relay.brevo.com
+BREVO_SMTP_PORT=587
+BREVO_SMTP_USER=
+BREVO_SMTP_KEY=
 BREVO_FROM_EMAIL=
+BREVO_FROM_NAME=JANJEZ SOCIO
 ```
 
 **Optional (for M-Pesa):**
@@ -78,11 +82,14 @@ Run this SQL in your Supabase dashboard to create the profiles table:
 This project uses **Brevo** (formerly Sendinblue) for transactional email (verification,
 password reset, contact form). The legacy ZeptoMail transport has been removed.
 
-1. Go to **Brevo Dashboard** → Settings → SMTP / API Keys → API Keys
-2. Create an API key with **`emailSmtp.access:write`** scope (or full access)
+1. In **Brevo Dashboard**, open **Settings → SMTP & API → SMTP**
+2. Copy the SMTP login and generate/copy an SMTP key (this is not the Brevo API key)
 3. In your environment / Vercel secrets set:
-   - `BREVO_API_KEY` — the Brevo API key (required)
-   - `BREVO_FROM_EMAIL` — sender address, e.g. `noreply@janjez.social` (required)
+   - `BREVO_SMTP_USER` — the SMTP login (required)
+   - `BREVO_SMTP_KEY` — the SMTP key (required)
+   - `BREVO_FROM_EMAIL` — verified sender address, e.g. `noreply@janjez.social` (required)
+   - `BREVO_SMTP_HOST` and `BREVO_SMTP_PORT` — optional; default to `smtp-relay.brevo.com:587`
+   - `BREVO_FROM_NAME` — optional; defaults to `JANJEZ SOCIO`
 
 ## Deploy to Vercel
 
@@ -92,4 +99,4 @@ This repo is connected to Vercel. To deploy:
 2. Vercel will auto-deploy
 3. Confirm environment variables are set in Vercel dashboard
 4. Enable Google provider in Supabase dashboard before production use
-5. Add `BREVO_API_KEY` and `BREVO_FROM_EMAIL` to Vercel environment variables
+5. Add `BREVO_SMTP_USER`, `BREVO_SMTP_KEY`, and `BREVO_FROM_EMAIL` to Vercel environment variables

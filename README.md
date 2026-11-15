@@ -18,6 +18,20 @@ npm run dev
 
 Open http://localhost:3000
 
+## Run with Docker
+
+Copy `.env.example` to `.env` and set the required Supabase values, including
+`SUPABASE_SERVICE_ROLE_KEY`. Docker Compose installs the Node dependencies in
+the image and builds the app with its `NEXT_PUBLIC_*` settings.
+
+```bash
+docker compose up --build -d app
+docker compose logs -f app
+```
+
+Open http://localhost:3000. The `app` service can be run by itself for local
+development; the `nginx` service is configured for ports 80 and 443.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env.local` and fill in real values.  
@@ -30,7 +44,7 @@ Required:
 - `SUPABASE_SERVICE_ROLE_KEY`
 
 Optional:
-- `BREVO_API_KEY`
+- `BREVO_SMTP_USER` and `BREVO_SMTP_KEY`
 - `BREVO_FROM_EMAIL`
 - M-Pesa variables for payment integration
 
@@ -46,12 +60,12 @@ Optional:
 
 ### Option B: Custom Verification Flow (Fully Branded)
 
-This project includes a custom verification flow that sends branded emails via Brevo directly from **JANJEZ SOCIO**.
+This project includes a custom verification flow that sends branded emails via Brevo SMTP from **JANJEZ SOCIO**.
 
 1. In Supabase dashboard, disable **Confirm email** under **Authentication → Providers → Email**
 2. Run the SQL migration `supabase/migrations/20250101000001_email_verification.sql`
 3. Set `SUPABASE_SERVICE_ROLE_KEY` in your environment
-4. Configure `BREVO_API_KEY` and `BREVO_FROM_EMAIL`
+4. Configure `BREVO_SMTP_USER`, `BREVO_SMTP_KEY`, and `BREVO_FROM_EMAIL`
 
 The app will now create users via the admin API and send verification emails branded as **JANJEZ SOCIO**.
 

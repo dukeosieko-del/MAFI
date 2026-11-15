@@ -1,0 +1,23 @@
+services:
+  db:
+    image: supabase/postgres:15.1.1.78
+    container_name: janjez-db
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      JWT_SECRET: "super-secret-jwt-token-which-is-supabase-auth-default-secret-key"
+      JWT_ISSUER: "https://rousjavuooduvicaobuv.supabase.co"
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  db-data:
