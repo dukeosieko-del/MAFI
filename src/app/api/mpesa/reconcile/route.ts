@@ -79,22 +79,22 @@ export async function POST(request: NextRequest) {
 
   for (const tx of pending) {
     try {
-      const status = await queryStkStatus(tx.reference);
+      const status = await queryStkStatus(tx.reference || "");
       if (status.ResultCode !== "0") {
-        unresolved.push({ reference: tx.reference, reason: status.ResultDesc || `ResultCode ${status.ResultCode}` });
+        unresolved.push({ reference: tx.reference || "", reason: status.ResultDesc || `ResultCode ${status.ResultCode}` });
         continue;
       }
 
-      const result = await completeStkPayment(tx.reference, extractMetadata(status));
+      const result = await completeStkPayment(tx.reference || "", extractMetadata(status));
       reconciled.push({
-        reference: tx.reference,
+        reference: tx.reference || "",
         amount: result.amount,
         newBalance: result.newBalance,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      unresolved.push({ reference: tx.reference, reason: message });
-      console.error(`[mpesa-reconcile] ${tx.reference}: ${message}`);
+      unresolved.push({ reference: tx.reference || "", reason: message });
+      console.error(`[mpesa-reconcile] ${tx.reference || ""}: ${message}`);
     }
   }
 

@@ -73,7 +73,7 @@ model AdminActivityLog {
 
 model Order {
   id                   String     @id @db.Uuid @default(dbgenerated("gen_random_uuid()"))
-  userId               String     @db.Uuid @map("user_id")
+  userId               String?    @db.Uuid @map("user_id")
   serviceName          String     @map("service_name")
   serviceId            String?    @map("service_id")
   link                 String
@@ -108,7 +108,7 @@ model Order {
   createdAt            DateTime   @default(now()) @map("created_at")
   updatedAt            DateTime   @default(now()) @map("updated_at")
 
-  profile              Profile    @relation(fields: [userId], references: [id])
+  profile              Profile?   @relation(fields: [userId], references: [id])
   fulfillmentLogs      FulfillmentLog[]
   affiliateEarnings    AffiliateEarning[]
 
@@ -127,6 +127,7 @@ model WalletTransaction {
   mpesaReceipt   String?  @map("mpesa_receipt")
   mpesaPhone     String?  @map("mpesa_phone")
   notes          String?
+  relatedOrderId String?  @map("related_order_id")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @default(now()) @map("updated_at")
 
@@ -216,7 +217,7 @@ model JanjezService {
   subcategory        String?
   description        String?
   sellingPriceKsh    Decimal  @db.Decimal(10, 2) @map("selling_price_ksh")
-  providerServiceId  String   @map("provider_service_id")
+  janzezServiceId    String   @map("janzez_service_id")
   minQuantity        Int      @map("min_quantity")
   maxQuantity        Int      @map("max_quantity")
   isActive           Boolean  @default(true) @map("is_active")
@@ -232,7 +233,7 @@ model JanjezService {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @default(now()) @map("updated_at")
 
-  @@map("janjez_services")
+  @@map("janzez_services")
 }
 
 model BlogCategory {

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      janjez_service_id,
+      janzez_service_id,
       link_submitted,
       quantity,
       phone_number,
