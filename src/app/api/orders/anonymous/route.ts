@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
         skuId: janjezService.slug,
         janzez_service_id,
         linkSubmitted: sanitizeString(link_submitted, 500),
-        link: sanitizeString(link_submitted, 500),
+        link: sanitizeString(link_submitted ?? "", 500),
         quantity: numQuantity,
         amount: expectedAmount,
         amountPaid: amountForMpesa,
