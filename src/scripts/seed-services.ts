@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
-import { ORDER_SERVICES } from "@/lib/data";
-import { SERVICE_CATALOG } from "@/lib/service-catalog";
+import * as fs from "fs";
+import * as path from "path";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -21,27 +21,17 @@ export function normalizeSlug(input: string): string {
     .replace(/^-+|-+$/, "") || "service";
 }
 
-function findSubcategory(svc: { categoryId: string; name: string; id: string }): string | null {
-  for (const catalogItem of SERVICE_CATALOG) {
-    if (catalogItem.id === svc.categoryId) {
-      for (const sub of catalogItem.subcategories) {
-        const match = sub.deliverables.find(
-          (d: any) => d.name === svc.name || d.name === svc.id
-        );
-        if (match) {
-          return sub.name;
-        }
-      }
-    }
-  }
-  return null;
-}
-
 function sqlEscape(val: any): string {
   if (val === null || val === undefined) return "NULL";
   if (typeof val === "boolean") return val ? "true" : "false";
   if (typeof val === "number") return String(val);
   return `'${String(val).replace(/'/g, "''")}'`;
+}
+
+function loadProviderData(): any[] {
+  const dataPath = path.join(process.cwd(), "src/scripts/provider_services_data.json");
+  const raw = fs.readFileSync(dataPath, "utf-8");
+  return JSON.parse(raw);
 }
 
 export async function seedServices() {
@@ -76,16 +66,25 @@ export async function seedServices() {
   // Clear existing services to avoid duplicates
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE "janzez_services" RESTART IDENTITY CASCADE`);
 
+  const services = loadProviderData();
   let created = 0;
+  const slugSet = new Set<string>();
 
-  for (const svc of ORDER_SERVICES) {
-    const slug = normalizeSlug(`${svc.categoryId}-${svc.id}`);
-    const subcategory = findSubcategory(svc);
-    const supportsRefill = svc.refill !== "No refill";
+  for (const svc of services) {
+    const baseSlug = normalizeSlug(`${svc.category}-${svc.id}`);
+    let slug = baseSlug;
+    let counter = 1;
+    while (slugSet.has(slug)) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+    slugSet.add(slug);
+
+    const sellingPriceKsh = svc.rate !== null && svc.rate !== undefined ? svc.rate : 0;
 
     await prisma.$executeRawUnsafe(`
       INSERT INTO "janzez_services" (
-        "id", "janzez_service_id", "name", "slug", "category", "subcategory",
+        "id", "janzev_service_id", "name", "slug", "category", "subcategory",
         "description", "selling_price_ksh", "min_quantity", "max_quantity",
         "is_active", "display_order", "supports_drip_feed", "supports_refill",
         "supports_cancel", "show_sidebar", "show_landing", "show_guarded",
@@ -95,19 +94,20 @@ export async function seedServices() {
         ${sqlEscape(svc.id)},
         ${sqlEscape(svc.name)},
         ${sqlEscape(slug)},
-        ${sqlEscape(svc.categoryId)},
-        ${sqlEscape(subcategory)},
-        ${sqlEscape(svc.description || null)},
-        ${sqlEscape(svc.rate)},
-        ${sqlEscape(svc.min)},
-        ${sqlEscape(svc.max)},
-        true,
+        ${sqlEscape(svc.category)},
+        ${sqlEscape(svc.subcategory)},
+        NULL,
+        ${sqlEscape(sellingPriceKsh)},
+        ${sqlEscape(svc.min !== null && svc.min !== undefined ? svc.min : 1)},
+        ${sqlEscape(svc.max !== null && svc.max !== undefined ? svc.max : 1000000)},
+        ${sqlEscape(svc.is_active !== null && svc.is_active !== undefined ? svc.is_active : true)},
         0,
+        ${sqlEscape(svc.supports_drip_feed !== null && svc.supports_drip_feed !== undefined ? svc.supports_drip_feed : false)},
+        ${sqlEscape(svc.refill !== null && svc.refill !== undefined ? svc.refill : false)},
+        ${sqlEscape(svc.cancel !== null && svc.cancel !== undefined ? svc.cancel : false)},
         false,
-        ${supportsRefill},
         false,
-        false,
-        false,
+        true,
         true,
         true,
         true,
@@ -118,19 +118,5 @@ export async function seedServices() {
     created++;
   }
 
-  return { created, total: ORDER_SERVICES.length };
-}
-
-if (require.main === module) {
-  seedServices()
-    .then((result) => {
-      console.log(
-        `Seeded ${result.created} services (${result.total} total).`
-      );
-      process.exit(0);
-    })
-    .catch((err) => {
-      console.error("Seed failed:", err);
-      process.exit(1);
-    });
+  return { created, total: services.length };
 }
