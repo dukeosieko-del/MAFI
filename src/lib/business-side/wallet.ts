@@ -17,7 +17,7 @@ export async function topUpBusinessWallet(input: {
     return { ok: false as const, code: "SERVER_MISCONFIGURED", message: "Business Side account is not configured." };
   }
 
-  const account = await prisma.profiles.findFirst({
+  const account = await prisma.profile.findFirst({
     where: { id: accountId },
     select: { id: true },
   });
@@ -26,7 +26,7 @@ export async function topUpBusinessWallet(input: {
     return { ok: false as const, code: "BUSINESS_ACCOUNT_NOT_FOUND", message: "Business Side account was not found." };
   }
 
-  const existing = await prisma.wallet_transactions.findFirst({
+  const existing = await prisma.walletTransaction.findFirst({
     where: {
       user_id: accountId,
       type: "topup",
@@ -59,7 +59,7 @@ export async function topUpBusinessWallet(input: {
     return { ok: false as const, code: "MPESA_ERROR", message: stk.error };
   }
 
-  await prisma.wallet_transactions.create({
+  await prisma.walletTransaction.create({
     data: {
       user_id: accountId,
       type: "topup",

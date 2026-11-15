@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
   const cutoff = new Date(Date.now() - MIN_AGE_MS).toISOString();
 
-  const pending = await prisma.wallet_transactions.findMany({
+  const pending = await prisma.walletTransaction.findMany({
     where: {
       status: "pending",
       payment_method: "mpesa",

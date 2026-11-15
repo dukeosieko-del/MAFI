@@ -47,7 +47,7 @@ export async function createNotification(
   if (!supabase) return null;
 
   try {
-    const row = await prisma.notifications.create({
+    const row = await prisma.notification.create({
       data: {
         user_id: input.userId,
         audience: input.audience ?? "user",
@@ -101,7 +101,7 @@ export async function notifyAdmins(
   if (!supabase) return [];
 
   try {
-    const admins = await prisma.profiles.findMany({
+    const admins = await prisma.profile.findMany({
       where: { role: "admin" },
       select: { id: true },
     });
@@ -118,7 +118,7 @@ export async function notifyAdmins(
       severity: payload.severity ?? "info",
     }));
 
-    const created = await prisma.notifications.createMany({
+    const created = await prisma.notification.createMany({
       data: rows,
     });
 
@@ -141,7 +141,7 @@ export async function markRead(
   if (!supabase) return false;
 
   try {
-    const notification = await prisma.notifications.findFirst({
+    const notification = await prisma.notification.findFirst({
       where: { id: notificationId },
     });
 
@@ -150,7 +150,7 @@ export async function markRead(
       return false;
     }
 
-    await prisma.notifications.update({
+    await prisma.notification.update({
       where: { id: notificationId },
       data: { read_at: new Date() },
     });
@@ -167,7 +167,7 @@ export async function markAllRead(userId: string): Promise<number> {
   if (!supabase) return 0;
 
   try {
-    const result = await prisma.notifications.updateMany({
+    const result = await prisma.notification.updateMany({
       where: { user_id: userId, read_at: null },
       data: { read_at: new Date() },
     });
@@ -210,14 +210,18 @@ export async function listNotifications(
       where.read_at = null;
     }
 
+    const findOptions: any = {
+      where,
+      orderBy: { created_at: "desc" },
+      take: limit + 1,
+    };
+    if (options.cursor) {
+      findOptions.cursor = { created_at: options.cursor };
+    }
+
     const [notifications, hasMore] = await Promise.all([
-      prisma.notifications.findMany({
-        where,
-        orderBy: { created_at: "desc" },
-        take: limit + 1,
-        options.cursor ? { cursor: { created_at: options.cursor } } : {},
-      } as any),
-      prisma.notifications.count({ where }),
+      prisma.notification.findMany(findOptions),
+      prisma.notification.count({ where }),
     ]);
 
     const rows = notifications.slice(0, limit);
@@ -252,7 +256,7 @@ export async function deleteNotification(
   if (!supabase) return false;
 
   try {
-    const notification = await prisma.notifications.findFirst({
+    const notification = await prisma.notification.findFirst({
       where: { id: notificationId },
     });
 
@@ -261,7 +265,7 @@ export async function deleteNotification(
       return false;
     }
 
-    await prisma.notifications.delete({
+    await prisma.notification.delete({
       where: { id: notificationId },
     });
 

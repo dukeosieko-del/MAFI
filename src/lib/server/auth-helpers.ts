@@ -31,7 +31,7 @@ export async function getUserFromRequest(request: NextRequest): Promise<AuthedUs
   const { data: userData, error } = await supabase.auth.getUser(token);
   if (error || !userData.user) return null;
 
-  const profile = await prisma.profiles.findFirst({
+  const profile = await prisma.profile.findFirst({
     where: { id: userData.user.id },
     select: { id: true, email: true, role: true },
   });

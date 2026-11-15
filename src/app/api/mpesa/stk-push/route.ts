@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   let relatedOrderId: string | null = null;
 
   if (orderId) {
-    const order = await prisma.orders.findFirst({
+    const order = await prisma.order.findFirst({
       where: { id: orderId, user_id: user.id },
       select: { id: true, amount: true, amount_paid: true, payment_status: true },
     });
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
         : `Wallet top-up for ${user.email}`,
     });
 
-    await prisma.wallet_transactions.create({
+    await prisma.walletTransaction.create({
       data: {
         user_id: user.id,
         type: relatedOrderId ? "order_payment" : "topup",
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (relatedOrderId) {
-      await prisma.orders.update({
+      await prisma.order.update({
         where: { id: relatedOrderId },
         data: { payment_status: "pending_mpesa" },
       });

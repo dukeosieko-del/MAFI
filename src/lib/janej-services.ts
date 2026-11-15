@@ -71,7 +71,7 @@ export async function listProviderServices(params: {
     where.supports_drip_feed = true;
   }
 
-  const data = await prisma.provider_services.findMany({
+  const data = await prisma.providerService.findMany({
     where,
     orderBy: { rate: "asc" },
   });

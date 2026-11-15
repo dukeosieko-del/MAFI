@@ -5,7 +5,7 @@ export async function getBusinessSideAccount() {
   const accountId = getBusinessSideAccountId();
   if (!accountId) return { ok: false as const, code: "SERVER_MISCONFIGURED" as const };
 
-  const account = await prisma.profiles.findFirst({
+  const account = await prisma.profile.findFirst({
     where: { id: accountId },
     select: { id: true, wallet_balance: true, email: true },
   });

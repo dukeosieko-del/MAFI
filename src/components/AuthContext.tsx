@@ -43,7 +43,7 @@ const REFRESH_DEBOUNCE_MS = 500;
 
 async function fetchProfile(userId: string): Promise<Profile | null> {
   try {
-    const data = await prisma.profiles.findFirst({ where: { id: userId } });
+    const data = await prisma.profile.findFirst({ where: { id: userId } });
     return data as Profile | null;
   } catch {
     return null;
@@ -54,7 +54,7 @@ async function ensureProfile(user: User): Promise<Profile | null> {
   try {
     let profile = await fetchProfile(user.id);
     if (!profile) {
-      profile = await prisma.profiles.create({
+      profile = await prisma.profile.create({
         data: {
           id: user.id,
           email: user.email,

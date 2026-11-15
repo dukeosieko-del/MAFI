@@ -47,7 +47,7 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
     return { ok: false as const, code: "INVALID_QUANTITY", message: "Quantity is outside the service limits." };
   }
 
-  const existing = await prisma.orders.findFirst({
+  const existing = await prisma.order.findFirst({
     where: {
       user_id: accountId,
       payment_reference: `business-side:${idempotencyKey}`,
@@ -67,7 +67,7 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
   }
 
   const orderReference = `business-side:${idempotencyKey}`;
-  const inserted = await prisma.orders.create({
+  const inserted = await prisma.order.create({
     data: {
       user_id: accountId,
       order_id: `BS-${Date.now().toString(36).toUpperCase()}`,
@@ -98,14 +98,14 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
     const fulfillment = await fulfillOrder(inserted.id);
     return { ok: true as const, order: inserted, fulfillment, replayed: false };
   } catch (error) {
-    const latest = await prisma.orders.findFirst({
+    const latest = await prisma.order.findFirst({
       where: { id: inserted.id },
       select: { payment_status: true },
     });
 
     if (latest?.payment_status === "paid") {
       await creditWallet(accountId, amount);
-      await prisma.orders.update({
+      await prisma.order.update({
         where: { id: inserted.id },
         data: { payment_status: "refunded" },
       });
@@ -123,7 +123,7 @@ export async function getBusinessOrder(orderId: string) {
   const accountId = getBusinessSideAccountId();
   if (!accountId) return null;
 
-  const order = await prisma.orders.findFirst({
+  const order = await prisma.order.findFirst({
     where: { id: orderId, user_id: accountId },
   });
 

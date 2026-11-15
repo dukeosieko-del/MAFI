@@ -22,13 +22,13 @@ async function sendVerificationEmail(
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    await prisma.email_verifications.deleteMany({ where: { user_id: userId } });
+    await prisma.emailVerification.deleteMany({ where: { user_id: userId } });
   } catch (err) {
     console.error("Failed to invalidate previous verification tokens:", err);
   }
 
   try {
-    await prisma.email_verifications.create({
+    await prisma.emailVerification.create({
       data: {
         user_id: userId,
         token,
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (sanitizedUsername) {
-      const profileUpdateError = await prisma.profiles.update({
+      const profileUpdateError = await prisma.profile.update({
         where: { id: newUser.user.id },
         data: { username: sanitizedUsername },
       }).then(() => null).catch((err: any) => err);

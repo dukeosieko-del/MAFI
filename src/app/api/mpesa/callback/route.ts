@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   const resultType = (body as Record<string, unknown>)?.ResultType?.toString();
 
   if (resultCode !== "0") {
-    await prisma.wallet_transactions.updateMany({
+    await prisma.walletTransaction.updateMany({
       where: { reference: checkoutRequestID, status: "pending" },
       data: {
         status: "failed",
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const result = await completeStkPayment(checkoutRequestID, metadata);
     if (result.amount > 0) {
       try {
-        const pendingTx = await prisma.wallet_transactions.findFirst({
+        const pendingTx = await prisma.walletTransaction.findFirst({
           where: { reference: checkoutRequestID },
           select: { user_id: true, reference: true },
         });
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     // The money is already in Safaricom's hands: keep the transaction PENDING
     // (do not mark it failed) so the reconciliation job can retry the credit
     // instead of losing the deposit. A 500 also makes Safaricom redeliver.
-    await prisma.wallet_transactions.updateMany({
+    await prisma.walletTransaction.updateMany({
       where: { reference: checkoutRequestID, status: "pending" },
       data: {
         notes: `Wallet credit pending retry: ${error instanceof Error ? error.message : String(error)}`,

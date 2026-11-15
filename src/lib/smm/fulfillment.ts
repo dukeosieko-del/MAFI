@@ -88,7 +88,7 @@ export async function syncProviderCatalog() {
   const services = await fetchProviderServices();
 
   for (const s of services) {
-    await prisma.provider_services.upsert({
+    await prisma.providerService.upsert({
       where: { id: String(s.service) },
       create: {
         id: String(s.service),
@@ -123,7 +123,7 @@ export async function syncProviderCatalog() {
   }
 
   const providerIds = new Set(services.map((s) => String(s.service)));
-  await prisma.provider_services.updateMany({
+  await prisma.providerService.updateMany({
     where: { id: { notIn: Array.from(providerIds) } },
     data: { is_active: false, fetched_at: new Date() },
   });
@@ -135,7 +135,7 @@ export async function getProviderServices(): Promise<ProviderService[]> {
   const supabase = createAdminClient();
   if (!supabase) return [];
 
-  const services = await prisma.provider_services.findMany({
+  const services = await prisma.providerService.findMany({
     orderBy: { rate: "asc" },
   });
 
@@ -199,7 +199,7 @@ export async function fulfillOrder(orderId: string) {
     throw new Error("Server misconfigured");
   }
 
-  const order = await prisma.orders.findFirst({
+  const order = await prisma.order.findFirst({
     where: { id: orderId },
   });
 
@@ -214,7 +214,7 @@ export async function fulfillOrder(orderId: string) {
   if (process.env.SMM_FULFILLMENT_ENABLED === "false") {
     const message = "Fulfillment is disabled";
     await logFulfillment(orderId, "place", "fulfillment_disabled", null, null, message);
-    await prisma.orders.update({
+    await prisma.order.update({
       where: { id: orderId },
       data: { fulfillment_status: "fulfillment_disabled", fulfillment_error: message },
     });
@@ -226,7 +226,7 @@ export async function fulfillOrder(orderId: string) {
   if (retryCount >= MAX_RETRIES) {
     const message = "Max retries exceeded";
     await logFulfillment(order.id, "place", "failed", null, null, message);
-    await prisma.orders.update({
+    await prisma.order.update({
       where: { id: order.id },
       data: { fulfillment_status: "failed", fulfillment_error: message },
     });
@@ -245,7 +245,7 @@ export async function fulfillOrder(orderId: string) {
   const janzezService = await resolveJanjezService(order.sku_id, order.catalog_category_id, order.janjez_service_id);
   if (janzezService && janzezService.provider_service_id) {
     resolvedService = janzezService;
-    const providerData = await prisma.provider_services.findFirst({
+    const providerData = await prisma.providerService.findFirst({
       where: { id: janzezService.provider_service_id },
     });
 
@@ -272,7 +272,7 @@ export async function fulfillOrder(orderId: string) {
 
   if (!providerService) {
     await logFulfillment(order.id, "place", "failed", null, null, "No provider mapping found for this service. Assign a provider_service_id to the Janjez service.");
-    await prisma.orders.update({
+    await prisma.order.update({
       where: { id: order.id },
       data: { fulfillment_status: "failed", fulfillment_error: "No provider mapping found for this service. Contact support." },
     });
@@ -290,7 +290,7 @@ export async function fulfillOrder(orderId: string) {
     if (providerBalance < expectedCharge) {
       const message = `Insufficient provider balance: ${providerBalance} USD (need ${expectedCharge} USD)`;
       await logFulfillment(order.id, "place", "failed", null, null, message);
-      await prisma.orders.update({
+      await prisma.order.update({
         where: { id: order.id },
         data: { fulfillment_status: "failed", fulfillment_error: message },
       });
@@ -299,7 +299,7 @@ export async function fulfillOrder(orderId: string) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Provider balance check failed";
     await logFulfillment(order.id, "place", "error", null, null, message);
-    await prisma.orders.update({
+    await prisma.order.update({
       where: { id: order.id },
       data: { fulfillment_status: "failed", fulfillment_error: message },
     });
@@ -322,7 +322,7 @@ export async function fulfillOrder(orderId: string) {
   }
 
   if (response.order) {
-    await prisma.orders.update({
+    await prisma.order.update({
       where: { id: order.id },
       data: {
         provider_service_id: String(providerService.service),
@@ -356,7 +356,7 @@ async function handleFulfillmentFailure(
   const nextRetryAt = isRetryable ? new Date(Date.now() + delay * 1000) : null;
 
   await logFulfillment(order.id as string, "place", newStatus, null, null, errorMessage);
-  await prisma.orders.update({
+  await prisma.order.update({
     where: { id: order.id },
     data: {
       fulfillment_status: newStatus,
@@ -385,7 +385,7 @@ async function refundOrder(
   if (userId && amountPaid && amountPaid > 0) {
     try {
       await creditWallet(userId, amountPaid);
-      await prisma.orders.update({
+      await prisma.order.update({
         where: { id: order.id },
         data: { payment_status: "refunded" },
       });
@@ -422,7 +422,7 @@ export async function cancelOrder(orderId: string) {
     throw new Error("Server misconfigured");
   }
 
-  const order = await prisma.orders.findFirst({
+  const order = await prisma.order.findFirst({
     where: { id: orderId },
   });
 
@@ -451,7 +451,7 @@ export async function cancelOrder(orderId: string) {
 
   try {
     await createProviderCancel([String(order.provider_order_id)]);
-    await prisma.orders.update({
+    await prisma.order.update({
       where: { id: order.id },
       data: {
         fulfillment_status: "cancelled",
@@ -474,7 +474,7 @@ export async function refillOrder(orderId: string) {
     throw new Error("Server misconfigured");
   }
 
-  const order = await prisma.orders.findFirst({
+  const order = await prisma.order.findFirst({
     where: { id: orderId },
   });
 
@@ -503,7 +503,7 @@ export async function refillOrder(orderId: string) {
 
   try {
     await createProviderRefill([String(order.provider_order_id)]);
-    await prisma.orders.update({
+    await prisma.order.update({
       where: { id: order.id },
       data: { provider_status: "Pending" },
     });
@@ -532,7 +532,7 @@ export async function syncOrderStatuses(orderIds?: string[]) {
   const supabase = createAdminClient();
   if (!supabase) return;
 
-  const orders = await prisma.orders.findMany({
+  const orders = await prisma.order.findMany({
     where: {
       provider_order_id: { not: null },
       ...(orderIds && orderIds.length > 0 ? { id: { in: orderIds } } : { fulfillment_status: { in: ["pending", "processing"] } }),
@@ -568,7 +568,7 @@ export async function syncOrderStatuses(orderIds?: string[]) {
       if (unknown) {
         console.warn(`Unknown provider status "${status.status}" for order ${order.id} (${order.order_id})`);
       }
-      await prisma.notifications.create({
+      await prisma.notification.create({
         data: {
           user_id: order.user_id as string,
           type: "order_update",
@@ -592,7 +592,7 @@ export async function syncOrderStatuses(orderIds?: string[]) {
       }
     }
 
-    await prisma.orders.update({
+    await prisma.order.update({
       where: { id: order.id },
       data: updates,
     });
@@ -614,7 +614,7 @@ export async function requestRefill(orderId: string) {
   const supabase = createAdminClient();
   if (!supabase) throw new Error("Server misconfigured");
 
-  const order = await prisma.orders.findFirst({
+  const order = await prisma.order.findFirst({
     where: { id: orderId },
     select: { provider_order_id: true, provider_service_id: true },
   });
@@ -627,7 +627,7 @@ export async function requestRefill(orderId: string) {
   const refillResult = result[0];
 
   if (refillResult && typeof refillResult.refill === "number") {
-    await prisma.orders.update({
+    await prisma.order.update({
       where: { id: orderId },
       data: {
         fulfillment_status: "processing",
@@ -652,7 +652,7 @@ export async function requestCancel(orderId: string) {
   const supabase = createAdminClient();
   if (!supabase) throw new Error("Server misconfigured");
 
-  const order = await prisma.orders.findFirst({
+  const order = await prisma.order.findFirst({
     where: { id: orderId },
     select: { provider_order_id: true },
   });
@@ -665,7 +665,7 @@ export async function requestCancel(orderId: string) {
   const cancelResult = result[0];
 
   if (cancelResult && typeof cancelResult.cancel === "number") {
-    await prisma.orders.update({
+    await prisma.order.update({
       where: { id: orderId },
       data: {
         fulfillment_status: "cancelled",
@@ -693,7 +693,7 @@ async function logFulfillment(
   responsePayload: unknown,
   error?: string
 ) {
-  await prisma.fulfillment_logs.create({
+  await prisma.fulfillmentLog.create({
     data: {
       order_id: orderId,
       action,

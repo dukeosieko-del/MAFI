@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const profile = await prisma.profiles.findFirst({
+    const profile = await prisma.profile.findFirst({
       where: { id: targetUserId },
       select: { id: true },
     });

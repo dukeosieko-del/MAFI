@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     const orderId = `ORD-${Date.now().toString(36).toUpperCase()}`;
     const amountForMpesa = calculateMpesaAmount(expectedAmount);
 
-    const orderData = await prisma.orders.create({
+    const orderData = await prisma.order.create({
       data: {
         order_id: orderId,
         user_id: null,
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
         transactionDesc: `Anonymous order payment for ${janjezService.name}`,
       });
 
-      await prisma.wallet_transactions.create({
+      await prisma.walletTransaction.create({
         data: {
           user_id: null,
           phone_number: sanitizeString(phone_number || "", 30),
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
     } catch (stkError) {
       console.error("Anonymous STT push error:", stkError);
       const stkErrorMsg = stkError instanceof Error ? stkError.message : "Unknown error";
-      await prisma.orders.update({
+      await prisma.order.update({
         where: { id: orderData.id },
         data: {
           fulfillment_status: "failed",

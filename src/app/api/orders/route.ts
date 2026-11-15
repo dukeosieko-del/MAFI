@@ -51,7 +51,7 @@ async function maybeSendLowBalanceEmail(
   if (newBalance >= LOW_BALANCE_THRESHOLD_KES) return;
 
   try {
-    const profile = await prisma.profiles.findFirst({
+    const profile = await prisma.profile.findFirst({
       where: { id: userId },
       select: { last_low_balance_email_at: true },
     });
@@ -80,7 +80,7 @@ async function maybeSendLowBalanceEmail(
       text,
     });
     if (result.ok) {
-      await prisma.profiles.update({
+      await prisma.profile.update({
         where: { id: userId },
         data: { last_low_balance_email_at: new Date().toISOString() },
       });
@@ -251,12 +251,12 @@ export async function POST(request: NextRequest) {
       const debit = await debitWallet(supabase as any, user.id, expectedAmount);
 
       if (!debit.success) {
-        const currentBalance = await prisma.profiles.findFirst({
+        const currentBalance = await prisma.profile.findFirst({
           where: { id: user.id },
           select: { wallet_balance: true },
         });
         const balance = Number(currentBalance?.wallet_balance) || 0;
-        await prisma.notifications.create({
+        await prisma.notification.create({
           data: {
             user_id: user.id,
             type: "order_failed",
@@ -279,7 +279,7 @@ export async function POST(request: NextRequest) {
       "low-wallet-balance"
     );
 
-    const orderData = await prisma.orders.create({
+    const orderData = await prisma.order.create({
       data: {
         user_id: user.id,
         order_id: order_id || undefined,
@@ -324,7 +324,7 @@ export async function POST(request: NextRequest) {
         const fulfillmentResult = await fulfillOrder(orderData.id);
 
         if (fulfillmentResult.status === "processing" || fulfillmentResult.status === "already_fulfilled") {
-          await prisma.notifications.create({
+          await prisma.notification.create({
             data: {
               user_id: user.id,
               type: "order_fulfilled",
@@ -337,14 +337,14 @@ export async function POST(request: NextRequest) {
       } catch (fulfillError) {
         console.error("Auto-fulfillment failed for order", orderData.id, fulfillError);
         const errorMessage = fulfillError instanceof Error ? fulfillError.message : "Auto-fulfillment error";
-        await prisma.orders.update({
+        await prisma.order.update({
           where: { id: orderData.id },
           data: {
             fulfillment_status: "failed",
             fulfillment_error: errorMessage,
           },
         });
-        await prisma.notifications.create({
+        await prisma.notification.create({
           data: {
             user_id: user.id,
             type: "order_failed",
@@ -365,7 +365,7 @@ export async function POST(request: NextRequest) {
 
         fireAndForgetEmail(
           (async () => {
-            const profile = await prisma.profiles.findFirst({
+            const profile = await prisma.profile.findFirst({
               where: { id: user.id },
               select: { full_name: true },
             });
@@ -388,7 +388,7 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        await prisma.notifications.create({
+        await prisma.notification.create({
           data: {
             user_id: user.id,
             type: "order_created",
@@ -403,7 +403,7 @@ export async function POST(request: NextRequest) {
 
       fireAndForgetEmail(
         (async () => {
-          const profile = await prisma.profiles.findFirst({
+          const profile = await prisma.profile.findFirst({
             where: { id: user.id },
             select: { full_name: true },
           });
@@ -444,7 +444,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const orders = await prisma.orders.findMany({
+    const orders = await prisma.order.findMany({
       where: { user_id: user.id },
       orderBy: { created_at: "desc" },
     });

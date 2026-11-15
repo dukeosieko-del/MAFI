@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const profile = await prisma.profiles.findFirst({
+    const profile = await prisma.profile.findFirst({
       where: { id: user.id },
     });
 
@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest) {
     if (theme !== undefined) updates.theme = theme;
     if (language !== undefined) updates.language = language;
 
-    const updated = await prisma.profiles.update({
+    const updated = await prisma.profile.update({
       where: { id: user.id },
       data: updates,
     });

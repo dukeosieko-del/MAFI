@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/auth/sign-in?error=server_misconfigured", REDIRECT_BASE));
     }
 
-    const verification = await prisma.email_verifications.findFirst({
+    const verification = await prisma.emailVerification.findFirst({
       where: { token },
     });
 
@@ -34,11 +34,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (new Date(verification.expires_at) < new Date()) {
-      await prisma.email_verifications.delete({ where: { id: verification.id } });
+      await prisma.emailVerification.delete({ where: { id: verification.id } });
       return NextResponse.redirect(new URL("/auth/sign-in?error=token_expired", REDIRECT_BASE));
     }
 
-    const profile = await prisma.profiles.findFirst({
+    const profile = await prisma.profile.findFirst({
       where: { id: verification.user_id },
       select: { id: true, email: true, email_verified: true },
     });
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (profile.email_verified) {
-      await prisma.email_verifications.delete({ where: { id: verification.id } });
+      await prisma.emailVerification.delete({ where: { id: verification.id } });
       return NextResponse.redirect(new URL(`/auth/sign-in?verified=1&email=${encodeURIComponent(profile.email)}`, REDIRECT_BASE));
     }
 
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
       console.error("Welcome email send failed");
     }
 
-    await prisma.email_verifications.delete({ where: { id: verification.id } });
+    await prisma.emailVerification.delete({ where: { id: verification.id } });
 
     return NextResponse.redirect(new URL(`/auth/sign-in?verified=1&email=${encodeURIComponent(profile.email)}`, REDIRECT_BASE));
   } catch {

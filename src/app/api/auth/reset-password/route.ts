@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
     try {
-      await prisma.password_reset_tokens.create({
+      await prisma.passwordResetToken.create({
         data: {
           user_id: user.id,
           token,
