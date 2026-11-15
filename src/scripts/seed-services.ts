@@ -21,13 +21,6 @@ export function normalizeSlug(input: string): string {
     .replace(/^-+|-+$/, "") || "service";
 }
 
-function sqlEscape(val: any): string {
-  if (val === null || val === undefined) return "NULL";
-  if (typeof val === "boolean") return val ? "true" : "false";
-  if (typeof val === "number") return String(val);
-  return `'${String(val).replace(/'/g, "''")}'`;
-}
-
 function loadProviderData(): any[] {
   const dataPath = path.join(process.cwd(), "src/scripts/provider_services_data.json");
   const raw = fs.readFileSync(dataPath, "utf-8");
@@ -38,7 +31,7 @@ export async function seedServices() {
   // Drop and recreate table to ensure correct schema
   await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "janzez_services" CASCADE`);
   await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "janzez_services" (
+    CREATE TABLE "janzez_services" (
       "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       "janzez_service_id" TEXT,
       "name" TEXT,
@@ -64,59 +57,53 @@ export async function seedServices() {
     )
   `);
 
-  // Clear existing services to avoid duplicates
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE "janzez_services" RESTART IDENTITY CASCADE`);
-
   const services = loadProviderData();
   let created = 0;
   const slugSet = new Set<string>();
+  const BATCH_SIZE = 500;
 
-  for (const svc of services) {
-    const baseSlug = normalizeSlug(`${svc.category}-${svc.id}`);
-    let slug = baseSlug;
-    let counter = 1;
-    while (slugSet.has(slug)) {
-      slug = `${baseSlug}-${counter}`;
-      counter++;
+  for (let i = 0; i < services.length; i += BATCH_SIZE) {
+    const batch = services.slice(i, i + BATCH_SIZE);
+    const rows: any[] = [];
+
+    for (const svc of batch) {
+      const baseSlug = normalizeSlug(`${svc.category}-${svc.id}`);
+      let slug = baseSlug;
+      let counter = 1;
+      while (slugSet.has(slug)) {
+        slug = `${baseSlug}-${counter}`;
+        counter++;
+      }
+      slugSet.add(slug);
+
+      rows.push({
+        janzevServiceId: svc.id ?? null,
+        name: svc.name ?? null,
+        slug,
+        category: svc.category ?? null,
+        subcategory: svc.subcategory ?? null,
+        description: null,
+        sellingPriceKsh: svc.rate ?? 0,
+        minQuantity: svc.min ?? 1,
+        maxQuantity: svc.max ?? 1000000,
+        isActive: svc.is_active ?? true,
+        displayOrder: 0,
+        supportsDripFeed: svc.supports_drip_feed ?? false,
+        supportsRefill: svc.refill ?? false,
+        supportsCancel: svc.cancel ?? false,
+        showSidebar: false,
+        showLanding: false,
+        showGuarded: true,
+        showAnonymous: true,
+        showCatalogue: true,
+      });
     }
-    slugSet.add(slug);
 
-    const sellingPriceKsh = svc.rate !== null && svc.rate !== undefined ? svc.rate : 0;
-
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "janzez_services" (
-        "id", "janzez_service_id", "name", "slug", "category", "subcategory",
-        "description", "selling_price_ksh", "min_quantity", "max_quantity",
-        "is_active", "display_order", "supports_drip_feed", "supports_refill",
-        "supports_cancel", "show_sidebar", "show_landing", "show_guarded",
-        "show_anonymous", "show_catalogue", "created_at", "updated_at"
-      ) VALUES (
-        gen_random_uuid(),
-        ${sqlEscape(svc.id)},
-        ${sqlEscape(svc.name)},
-        ${sqlEscape(slug)},
-        ${sqlEscape(svc.category)},
-        ${sqlEscape(svc.subcategory)},
-        NULL,
-        ${sqlEscape(sellingPriceKsh)},
-        ${sqlEscape(svc.min !== null && svc.min !== undefined ? svc.min : 1)},
-        ${sqlEscape(svc.max !== null && svc.max !== undefined ? svc.max : 1000000)},
-        ${sqlEscape(svc.is_active !== null && svc.is_active !== undefined ? svc.is_active : true)},
-        0,
-        ${sqlEscape(svc.supports_drip_feed !== null && svc.supports_drip_feed !== undefined ? svc.supports_drip_feed : false)},
-        ${sqlEscape(svc.refill !== null && svc.refill !== undefined ? svc.refill : false)},
-        ${sqlEscape(svc.cancel !== null && svc.cancel !== undefined ? svc.cancel : false)},
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        now(),
-        now()
-      )
-    `);
-    created++;
+    await (prisma as any).janzevService.createMany({
+      data: rows,
+      skipDuplicates: true,
+    });
+    created += rows.length;
   }
 
   return { created, total: services.length };
