@@ -7,7 +7,7 @@ export async function getBusinessSideAccount() {
 
   const account = await prisma.profile.findFirst({
     where: { id: accountId },
-    select: { id: true, wallet_balance: true, email: true },
+    select: { id: true, walletBalance: true, email: true },
   });
 
   if (!account) return { ok: false as const, code: "BUSINESS_ACCOUNT_NOT_FOUND" as const };

@@ -83,21 +83,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Service not found or not available" }, { status: 404 });
     }
 
-    if (!janjezService.provider_service_id) {
+    if (!janjezService.providerServiceId) {
       return NextResponse.json({ error: "Service is not configured for ordering. Please try another service." }, { status: 400 });
     }
 
-    if (numQuantity < janjezService.min_quantity || numQuantity > janjezService.max_quantity) {
+    if (numQuantity < janjezService.minQuantity || numQuantity > janjezService.maxQuantity) {
       return NextResponse.json({
-        error: `Quantity must be between ${janjezService.min_quantity} and ${janjezService.max_quantity.toLocaleString()}.`,
+        error: `Quantity must be between ${janjezService.minQuantity} and ${janjezService.maxQuantity.toLocaleString()}.`,
       }, { status: 400 });
     }
 
-    if ((runs != null || interval != null) && !janjezService.supports_drip_feed) {
+    if ((runs != null || interval != null) && !janjezService.supportsDripFeed) {
       return NextResponse.json({ error: "This service does not support drip-feed" }, { status: 400 });
     }
 
-    const expectedAmount = calculateOrderCost(janjezService.selling_price_ksh, numQuantity);
+    const expectedAmount = calculateOrderCost(janjezService.sellingPriceKsh, numQuantity);
 
     if (isNaN(expectedAmount) || expectedAmount <= 0) {
       return NextResponse.json({ error: "Unable to verify service price" }, { status: 400 });
@@ -109,23 +109,23 @@ export async function POST(request: NextRequest) {
     const orderData = await prisma.order.create({
       data: {
         order_id: orderId,
-        user_id: null,
-        phone_number: sanitizeString(phone_number || "", 30),
+        userId: null,
+        phoneNumber: sanitizeString(phone_number || "", 30),
         anonymous: true,
         category: janjezService.category,
         subcategory: janjezService.subcategory || janjezService.name,
-        service_name: janjezService.name,
-        sku_id: janjezService.slug,
+        serviceName: janjezService.name,
+        skuId: janjezService.slug,
         janzez_service_id,
-        link_submitted: sanitizeString(link_submitted, 500),
+        linkSubmitted: sanitizeString(link_submitted, 500),
         link: sanitizeString(link_submitted, 500),
         quantity: numQuantity,
         amount: expectedAmount,
-        amount_paid: amountForMpesa,
-        quantity_source: "preset",
+        amountPaid: amountForMpesa,
+        quantitySource: "preset",
         status: "pending",
-        payment_status: "pending_mpesa",
-        fulfillment_status: "pending",
+        paymentStatus: "pending_mpesa",
+        fulfillmentStatus: "pending",
         runs: runs ?? null,
         interval: interval ?? null,
       },
@@ -177,15 +177,15 @@ export async function POST(request: NextRequest) {
 
       await prisma.walletTransaction.create({
         data: {
-          user_id: null,
-          phone_number: sanitizeString(phone_number || "", 30),
+          userId: null,
+          phoneNumber: sanitizeString(phone_number || "", 30),
           type: "order_payment",
           amount: amountForMpesa,
           currency: "KES",
-          payment_method: "mpesa",
-          mpesa_phone: phone_number,
+          paymentMethod: "mpesa",
+          mpesaPhone: phone_number,
           reference: stkRes.CheckoutRequestID,
-          related_order_id: orderData.id,
+          relatedOrderId: orderData.id,
           status: "pending",
           notes: `Anonymous order STK for ${orderId}`,
         },
@@ -205,8 +205,8 @@ export async function POST(request: NextRequest) {
       await prisma.order.update({
         where: { id: orderData.id },
         data: {
-          fulfillment_status: "failed",
-          fulfillment_error: `M-Pesa payment initiation failed: ${stkErrorMsg}`,
+          fulfillmentStatus: "failed",
+          fulfillmentError: `M-Pesa payment initiation failed: ${stkErrorMsg}`,
         },
       });
       return NextResponse.json({

@@ -65,12 +65,12 @@ export async function POST(request: NextRequest) {
   const pending = await prisma.walletTransaction.findMany({
     where: {
       status: "pending",
-      payment_method: "mpesa",
-      created_at: { lt: new Date(cutoff) },
-      ...(!reconcileAll && scopeUserId ? { user_id: scopeUserId } : {}),
+      paymentMethod: "mpesa",
+      createdAt: { lt: new Date(cutoff) },
+      ...(!reconcileAll && scopeUserId ? { userId: scopeUserId } : {}),
     },
-    select: { id: true, user_id: true, amount: true, reference: true, related_order_id: true, created_at: true },
-    orderBy: { created_at: "asc" },
+    select: { id: true, userId: true, amount: true, reference: true, relatedOrderId: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
     take: 50,
   });
 

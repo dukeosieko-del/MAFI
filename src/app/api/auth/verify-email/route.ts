@@ -33,26 +33,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/auth/sign-in?error=invalid_token", REDIRECT_BASE));
     }
 
-    if (new Date(verification.expires_at) < new Date()) {
+    if (new Date(verification.expiresAt) < new Date()) {
       await prisma.emailVerification.delete({ where: { id: verification.id } });
       return NextResponse.redirect(new URL("/auth/sign-in?error=token_expired", REDIRECT_BASE));
     }
 
     const profile = await prisma.profile.findFirst({
-      where: { id: verification.user_id },
-      select: { id: true, email: true, email_verified: true },
+      where: { id: verification.userId },
+      select: { id: true, email: true, emailVerified: true },
     });
 
     if (!profile) {
       return NextResponse.redirect(new URL("/auth/sign-in?error=profile_not_found", REDIRECT_BASE));
     }
 
-    if (profile.email_verified) {
+    if (profile.emailVerified) {
       await prisma.emailVerification.delete({ where: { id: verification.id } });
       return NextResponse.redirect(new URL(`/auth/sign-in?verified=1&email=${encodeURIComponent(profile.email)}`, REDIRECT_BASE));
     }
 
-    const { error: updateError } = await supabase.auth.admin.updateUserById(verification.user_id, {
+    const { error: updateError } = await supabase.auth.admin.updateUserById(verification.userId, {
       email_confirm: true,
     });
 
@@ -61,11 +61,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/auth/sign-in?error=verification_failed", REDIRECT_BASE));
     }
 
-    const { data: authUser } = await supabase.auth.admin.getUserById(verification.user_id);
-    const fullName = (authUser?.user?.user_metadata?.full_name as string | undefined) || null;
+    const { data: authUser } = await supabase.auth.admin.getUserById(verification.userId);
+    const fullName = (authUser?.user?.user_metadata?.fullName as string | undefined) || null;
     const welcomeResult = await sendTransactional({
       name: "user.welcome",
-      userId: verification.user_id,
+      userId: verification.userId,
       email: profile.email,
       fullName,
       data: {

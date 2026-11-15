@@ -9,22 +9,22 @@ export interface JanzejService {
   category: string;
   subcategory: string | null;
   description: string | null;
-  selling_price_ksh: number;
-  provider_service_id: string | null;
-  min_quantity: number;
-  max_quantity: number;
+  sellingPriceKsh: number;
+  providerServiceId: string | null;
+  minQuantity: number;
+  maxQuantity: number;
   is_active: boolean;
-  display_order: number;
-  supports_drip_feed: boolean;
-  supports_refill: boolean;
-  supports_cancel: boolean;
-  show_sidebar: boolean;
-  show_landing: boolean;
-  show_guarded: boolean;
-  show_anonymous: boolean;
-  show_catalogue: boolean;
-  created_at: string;
-  updated_at: string;
+  displayOrder: number;
+  supportsDripFeed: boolean;
+  supportsRefill: boolean;
+  supportsCancel: boolean;
+  showSidebar: boolean;
+  showLanding: boolean;
+  showGuarded: boolean;
+  showAnonymous: boolean;
+  showCatalogue: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type ServiceTier = "champion" | "premium" | "enterprise";
@@ -77,12 +77,12 @@ export function getTierInfo(tier: ServiceTier): TierInfo | undefined {
 
 export function filterServicesByTier(services: JanzejService[], tier: ServiceTier): JanzejService[] {
   if (tier === "champion") {
-    return services.filter((s) => s.selling_price_ksh <= 2000);
+    return services.filter((s) => s.sellingPriceKsh <= 2000);
   }
   if (tier === "premium") {
-    return services.filter((s) => s.selling_price_ksh > 2000 && s.selling_price_ksh <= 6000);
+    return services.filter((s) => s.sellingPriceKsh > 2000 && s.sellingPriceKsh <= 6000);
   }
-  return services.filter((s) => s.selling_price_ksh > 6000);
+  return services.filter((s) => s.sellingPriceKsh > 6000);
 }
 
 export function getTierHref(tier: ServiceTier): string {
@@ -104,7 +104,7 @@ export interface ProviderServiceRow {
   max: number;
   refill: boolean;
   cancel: boolean;
-  supports_drip_feed: boolean;
+  supportsDripFeed: boolean;
   is_active: boolean;
   fetched_at: string;
   raw: unknown;
@@ -132,7 +132,7 @@ export async function listProviderServices(params: {
   }
 
   if (params.supportsDripFeed) {
-    where.supports_drip_feed = true;
+    where.supportsDripFeed = true;
   }
 
   const data = await prisma.providerService.findMany({
@@ -160,8 +160,8 @@ export async function listJanjezServices(activeOnly: boolean = false, placement?
   const all = await prisma.janjez_services.findMany({
     where,
     orderBy: [
-      { display_order: "asc" },
-      { created_at: "desc" },
+      { displayOrder: "asc" },
+      { createdAt: "desc" },
     ],
   });
 
@@ -186,10 +186,10 @@ export async function createJanzejService(input: {
   category: string;
   subcategory?: string;
   description?: string;
-  selling_price_ksh: number;
+  sellingPriceKsh: number;
   provider_service_id?: string | null;
-  min_quantity: number;
-  max_quantity: number;
+  minQuantity: number;
+  maxQuantity: number;
   is_active?: boolean;
   display_order?: number;
   supports_drip_feed?: boolean;
@@ -211,20 +211,20 @@ export async function createJanzejService(input: {
       category: input.category,
       subcategory: input.subcategory || null,
       description: input.description || null,
-      selling_price_ksh: input.selling_price_ksh,
-      provider_service_id: input.provider_service_id || null,
-      min_quantity: input.min_quantity,
-      max_quantity: input.max_quantity,
+      sellingPriceKsh: input.sellingPriceKsh,
+      providerServiceId: input.providerServiceId || null,
+      minQuantity: input.minQuantity,
+      maxQuantity: input.maxQuantity,
       is_active: input.is_active ?? true,
-      display_order: input.display_order ?? 0,
-      supports_drip_feed: input.supports_drip_feed ?? false,
-      supports_refill: input.supports_refill ?? false,
-      supports_cancel: input.supports_cancel ?? false,
-      show_sidebar: input.show_sidebar ?? false,
-      show_landing: input.show_landing ?? false,
-      show_guarded: input.show_guarded ?? true,
-      show_anonymous: input.show_anonymous ?? true,
-      show_catalogue: input.show_catalogue ?? true,
+      displayOrder: input.displayOrder ?? 0,
+      supportsDripFeed: input.supportsDripFeed ?? false,
+      supportsRefill: input.supportsRefill ?? false,
+      supportsCancel: input.supportsCancel ?? false,
+      showSidebar: input.showSidebar ?? false,
+      showLanding: input.showLanding ?? false,
+      showGuarded: input.showGuarded ?? true,
+      showAnonymous: input.showAnonymous ?? true,
+      showCatalogue: input.showCatalogue ?? true,
     },
   });
 
@@ -237,20 +237,20 @@ export async function updateJanzejService(id: string, input: Partial<{
   category: string;
   subcategory: string | null;
   description: string | null;
-  selling_price_ksh: number;
-  provider_service_id: string | null;
-  min_quantity: number;
-  max_quantity: number;
+  sellingPriceKsh: number;
+  providerServiceId: string | null;
+  minQuantity: number;
+  maxQuantity: number;
   is_active: boolean;
-  display_order: number;
-  supports_drip_feed: boolean;
-  supports_refill: boolean;
-  supports_cancel: boolean;
-  show_sidebar: boolean;
-  show_landing: boolean;
-  show_guarded: boolean;
-  show_anonymous: boolean;
-  show_catalogue: boolean;
+  displayOrder: number;
+  supportsDripFeed: boolean;
+  supportsRefill: boolean;
+  supportsCancel: boolean;
+  showSidebar: boolean;
+  showLanding: boolean;
+  showGuarded: boolean;
+  showAnonymous: boolean;
+  showCatalogue: boolean;
 }>): Promise<JanzejService | { error: string }> {
   const supabase = createAdminClient();
   if (!supabase) return { error: "Server misconfigured" };
@@ -295,7 +295,7 @@ export async function getProviderCatalogFresh(): Promise<ProviderServiceRow[]> {
     max: parseInt(s.max, 10),
     refill: s.refill,
     cancel: s.cancel,
-    supports_drip_feed: s.dripfeed === true,
+    supportsDripFeed: s.dripfeed === true,
     is_active: true,
     fetched_at: new Date().toISOString(),
     raw: s,

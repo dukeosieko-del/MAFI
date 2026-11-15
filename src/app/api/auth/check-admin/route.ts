@@ -35,8 +35,8 @@ export async function GET(request: NextRequest) {
             id: profile.id,
             email: profile.email,
             role: profile.role,
-            email_verified: profile.email_verified,
-            wallet_balance: profile.wallet_balance,
+            emailVerified: profile.emailVerified,
+            walletBalance: profile.walletBalance,
           }
         : null,
       diagnosis: {

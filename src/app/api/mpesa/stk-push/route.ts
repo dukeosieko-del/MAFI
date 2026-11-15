@@ -38,18 +38,18 @@ export async function POST(request: NextRequest) {
 
   if (orderId) {
     const order = await prisma.order.findFirst({
-      where: { id: orderId, user_id: user.id },
-      select: { id: true, amount: true, amount_paid: true, payment_status: true },
+      where: { id: orderId, userId: user.id },
+      select: { id: true, amount: true, amountPaid: true, paymentStatus: true },
     });
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
-    if (order.payment_status === "paid") {
+    if (order.paymentStatus === "paid") {
       return NextResponse.json({ error: "This order has already been paid" }, { status: 409 });
     }
 
-    const expected = Number(order.amount_paid ?? order.amount) || 0;
+    const expected = Number(order.amountPaid ?? order.amount) || 0;
     if (expected <= 0) {
       return NextResponse.json({ error: "Order has no payable amount" }, { status: 400 });
     }
@@ -74,14 +74,14 @@ export async function POST(request: NextRequest) {
 
     await prisma.walletTransaction.create({
       data: {
-        user_id: user.id,
+        userId: user.id,
         type: relatedOrderId ? "order_payment" : "topup",
         amount: chargeAmount,
         currency: "KES",
-        payment_method: "mpesa",
-        mpesa_phone: phoneNumber,
+        paymentMethod: "mpesa",
+        mpesaPhone: phoneNumber,
         reference: response.CheckoutRequestID,
-        related_order_id: relatedOrderId,
+        relatedOrderId: relatedOrderId,
         status: "pending",
         notes: relatedOrderId ? "M-Pesa STK push initiated for order" : "M-Pesa STK push initiated",
       },
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     if (relatedOrderId) {
       await prisma.order.update({
         where: { id: relatedOrderId },
-        data: { payment_status: "pending_mpesa" },
+        data: { paymentStatus: "pending_mpesa" },
       });
     }
 

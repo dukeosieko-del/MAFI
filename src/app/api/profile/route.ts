@@ -81,12 +81,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Validation failed", details: errors }, { status: 400 });
     }
 
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (full_name !== undefined) updates.full_name = full_name;
+    const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+    if (full_name !== undefined) updates.fullName = full_name;
     if (phone !== undefined) updates.phone = phone;
-    if (avatar_url !== undefined) updates.avatar_url = avatar_url;
-    if (notification_email !== undefined) updates.notification_email = notification_email;
-    if (notification_sms !== undefined) updates.notification_sms = notification_sms;
+    if (avatar_url !== undefined) updates.avatarUrl = avatar_url;
+    if (notification_email !== undefined) updates.notificationEmail = notification_email;
+    if (notification_sms !== undefined) updates.notificationSms = notification_sms;
     if (theme !== undefined) updates.theme = theme;
     if (language !== undefined) updates.language = language;
 

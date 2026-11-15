@@ -9,10 +9,10 @@ import { fetchWithTimeout } from "@/lib/client/fetchWithTimeout";
 interface Profile {
   id: string;
   email: string | null;
-  full_name: string | null;
+  fullName: string | null;
   phone: string | null;
-  wallet_balance: number;
-  email_verified: boolean;
+  walletBalance: number;
+  emailVerified: boolean;
   role: string;
 }
 
@@ -58,10 +58,10 @@ async function ensureProfile(user: User): Promise<Profile | null> {
         data: {
           id: user.id,
           email: user.email,
-          full_name: user.user_metadata?.full_name || null,
+          fullName: user.user_metadata?.fullName || null,
           phone: user.user_metadata?.phone || null,
-          wallet_balance: 0,
-          email_verified: !!user.email_confirmed_at,
+          walletBalance: 0,
+          emailVerified: !!user.email_confirmed_at,
           role: "user",
         },
       });
@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const prof = await ensureProfile(user as any);
       if (prof) {
         setProfile(prof);
-        setWalletBalance(Number(prof.wallet_balance) || 0);
+        setWalletBalance(Number(prof.walletBalance) || 0);
         setIsAdmin(prof.role === "admin");
       } else {
         setProfile(null);

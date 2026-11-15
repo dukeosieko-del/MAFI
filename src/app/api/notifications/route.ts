@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       cursor,
     });
 
-    const unreadCount = result.notifications.filter((n) => !n.read_at).length;
+    const unreadCount = result.notifications.filter((n) => !n.readAt).length;
 
     return NextResponse.json({
       notifications: result.notifications,
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
     const messageBody = typeof body.body === "string" ? body.body : null;
     const link = typeof body.link === "string" ? body.link : null;
     const targetUserId =
-      typeof body.user_id === "string" ? body.user_id : null;
+      typeof body.userId === "string" ? body.userId : null;
 
     if (!title) {
       return NextResponse.json({ error: "title is required" }, { status: 400 });

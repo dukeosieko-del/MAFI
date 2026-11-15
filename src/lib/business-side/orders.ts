@@ -43,23 +43,23 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
     return { ok: false as const, code: "SERVICE_NOT_FOUND", message: "Janjez service was not found." };
   }
 
-  if (quantity < service.min_quantity || quantity > service.max_quantity) {
+  if (quantity < service.minQuantity || quantity > service.maxQuantity) {
     return { ok: false as const, code: "INVALID_QUANTITY", message: "Quantity is outside the service limits." };
   }
 
   const existing = await prisma.order.findFirst({
     where: {
-      user_id: accountId,
-      payment_reference: `business-side:${idempotencyKey}`,
+      userId: accountId,
+      paymentReference: `business-side:${idempotencyKey}`,
     },
-    select: { id: true, order_id: true, status: true, fulfillment_status: true, provider_status: true, provider_order_id: true, quantity: true, amount: true, link: true, link_submitted: true, created_at: true, updated_at: true },
+    select: { id: true, order_id: true, status: true, fulfillmentStatus: true, provider_status: true, providerOrderId: true, quantity: true, amount: true, link: true, linkSubmitted: true, createdAt: true, updatedAt: true },
   });
 
   if (existing) {
     return { ok: true as const, order: existing, fulfillment: null, replayed: true };
   }
 
-  const amount = calculateOrderCost(service.selling_price_ksh, quantity);
+  const amount = calculateOrderCost(service.sellingPriceKsh, quantity);
   const debit = await debitWallet(accountId, amount);
 
   if (!debit.success) {
@@ -69,26 +69,26 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
   const orderReference = `business-side:${idempotencyKey}`;
   const inserted = await prisma.order.create({
     data: {
-      user_id: accountId,
+      userId: accountId,
       order_id: `BS-${Date.now().toString(36).toUpperCase()}`,
       category: service.category,
       subcategory: service.subcategory,
-      sku_id: service.slug,
-      catalog_category_id: service.category,
-      janzej_service_id: service.id,
-      provider_service_id: service.provider_service_id || null,
-      service_name: service.name,
+      skuId: service.slug,
+      catalogCategoryId: service.category,
+      janzejServiceId: service.id,
+      providerServiceId: service.providerServiceId || null,
+      serviceName: service.name,
       quantity,
-      link_submitted: link,
+      linkSubmitted: link,
       link,
       amount,
-      amount_paid: amount,
-      payment_status: "paid",
+      amountPaid: amount,
+      paymentStatus: "paid",
       status: "pending",
-      fulfillment_status: "pending",
-      payment_method: "wallet",
-      payment_reference: orderReference,
-      quantity_source: "preset",
+      fulfillmentStatus: "pending",
+      paymentMethod: "wallet",
+      paymentReference: orderReference,
+      quantitySource: "preset",
       runs: input.runs ?? null,
       interval: input.interval ?? null,
     },
@@ -100,14 +100,14 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
   } catch (error) {
     const latest = await prisma.order.findFirst({
       where: { id: inserted.id },
-      select: { payment_status: true },
+      select: { paymentStatus: true },
     });
 
-    if (latest?.payment_status === "paid") {
+    if (latest?.paymentStatus === "paid") {
       await creditWallet(accountId, amount);
       await prisma.order.update({
         where: { id: inserted.id },
-        data: { payment_status: "refunded" },
+        data: { paymentStatus: "refunded" },
       });
     }
 
@@ -124,7 +124,7 @@ export async function getBusinessOrder(orderId: string) {
   if (!accountId) return null;
 
   const order = await prisma.order.findFirst({
-    where: { id: orderId, user_id: accountId },
+    where: { id: orderId, userId: accountId },
   });
 
   return order;

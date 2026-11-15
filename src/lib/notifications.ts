@@ -12,15 +12,15 @@ export type NotificationCategory =
 
 export interface Notification {
   id: string;
-  user_id: string;
+  userId: string;
   audience: NotificationAudience;
   category: NotificationCategory;
   title: string;
   body: string | null;
   link: string | null;
   severity: NotificationSeverity;
-  read_at: string | null;
-  created_at: string;
+  readAt: string | null;
+  createdAt: string;
 }
 
 export interface CreateNotificationInput {
@@ -49,7 +49,7 @@ export async function createNotification(
   try {
     const row = await prisma.notification.create({
       data: {
-        user_id: input.userId,
+        userId: input.userId,
         audience: input.audience ?? "user",
         category: input.category ?? "system",
         title: input.title,
@@ -61,15 +61,15 @@ export async function createNotification(
 
     return {
       id: row.id,
-      user_id: row.user_id,
+      userId: row.userId,
       audience: row.audience as NotificationAudience,
       category: row.category as NotificationCategory,
       title: row.title,
       body: row.body,
       link: row.link,
       severity: row.severity as NotificationSeverity,
-      read_at: row.read_at?.toISOString() || null,
-      created_at: row.created_at.toISOString(),
+      readAt: row.readAt?.toISOString() || null,
+      createdAt: row.createdAt.toISOString(),
     };
   } catch (err) {
     console.error("createNotification error:", err);
@@ -109,7 +109,7 @@ export async function notifyAdmins(
     if (!admins || admins.length === 0) return [];
 
     const rows = admins.map((a) => ({
-      user_id: a.id,
+      userId: a.id,
       audience: "admin" as NotificationAudience,
       category,
       title: payload.title,
@@ -124,8 +124,8 @@ export async function notifyAdmins(
 
     return created ? rows.map((r, i) => ({
       ...r,
-      read_at: null,
-      created_at: new Date().toISOString(),
+      readAt: null,
+      createdAt: new Date().toISOString(),
     })) : [];
   } catch (err) {
     console.error("notifyAdmins insert error:", err);
@@ -145,14 +145,14 @@ export async function markRead(
       where: { id: notificationId },
     });
 
-    if (!notification || notification.user_id !== userId) {
+    if (!notification || notification.userId !== userId) {
       console.error("markRead ownership mismatch");
       return false;
     }
 
     await prisma.notification.update({
       where: { id: notificationId },
-      data: { read_at: new Date() },
+      data: { readAt: new Date() },
     });
 
     return true;
@@ -168,8 +168,8 @@ export async function markAllRead(userId: string): Promise<number> {
 
   try {
     const result = await prisma.notification.updateMany({
-      where: { user_id: userId, read_at: null },
-      data: { read_at: new Date() },
+      where: { userId: userId, readAt: null },
+      data: { readAt: new Date() },
     });
 
     return result.count;
@@ -204,19 +204,19 @@ export async function listNotifications(
 
     const where: any = audience === "admin"
       ? { audience: "admin" }
-      : { audience: "user", user_id: userId };
+      : { audience: "user", userId: userId };
 
     if (options.unreadOnly) {
-      where.read_at = null;
+      where.readAt = null;
     }
 
     const findOptions: any = {
       where,
-      orderBy: { created_at: "desc" },
+      orderBy: { createdAt: "desc" },
       take: limit + 1,
     };
     if (options.cursor) {
-      findOptions.cursor = { created_at: options.cursor };
+      findOptions.cursor = { createdAt: options.cursor };
     }
 
     const [notifications, hasMore] = await Promise.all([
@@ -225,20 +225,20 @@ export async function listNotifications(
     ]);
 
     const rows = notifications.slice(0, limit);
-    const nextCursor = rows.length > limit ? rows[rows.length - 1].created_at.toISOString() : null;
+    const nextCursor = rows.length > limit ? rows[rows.length - 1].createdAt.toISOString() : null;
 
     return {
       notifications: rows.map((n) => ({
         id: n.id,
-        user_id: n.user_id,
+        userId: n.userId,
         audience: n.audience as NotificationAudience,
         category: n.category as NotificationCategory,
         title: n.title,
         body: n.body,
         link: n.link,
         severity: n.severity as NotificationSeverity,
-        read_at: n.read_at?.toISOString() || null,
-        created_at: n.created_at.toISOString(),
+        readAt: n.readAt?.toISOString() || null,
+        createdAt: n.createdAt.toISOString(),
       })),
       nextCursor,
     };
@@ -260,7 +260,7 @@ export async function deleteNotification(
       where: { id: notificationId },
     });
 
-    if (!notification || notification.user_id !== userId) {
+    if (!notification || notification.userId !== userId) {
       console.error("deleteNotification ownership mismatch");
       return false;
     }

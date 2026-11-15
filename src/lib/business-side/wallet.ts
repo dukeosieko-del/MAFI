@@ -28,7 +28,7 @@ export async function topUpBusinessWallet(input: {
 
   const existing = await prisma.walletTransaction.findFirst({
     where: {
-      user_id: accountId,
+      userId: accountId,
       type: "topup",
       notes: `business-side:${input.idempotencyKey}`,
     },
@@ -61,12 +61,12 @@ export async function topUpBusinessWallet(input: {
 
   await prisma.walletTransaction.create({
     data: {
-      user_id: accountId,
+      userId: accountId,
       type: "topup",
       amount: input.amount,
       currency: "KES",
-      payment_method: "mpesa",
-      mpesa_phone: normalizePhone(input.phoneNumber),
+      paymentMethod: "mpesa",
+      mpesaPhone: normalizePhone(input.phoneNumber),
       reference: stk.CheckoutRequestID,
       status: "pending",
       notes: `business-side:${input.idempotencyKey}`,

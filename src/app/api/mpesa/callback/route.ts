@@ -70,15 +70,15 @@ export async function POST(request: NextRequest) {
       try {
         const pendingTx = await prisma.walletTransaction.findFirst({
           where: { reference: checkoutRequestID },
-          select: { user_id: true, reference: true },
+          select: { userId: true, reference: true },
         });
-        const txUserId = pendingTx?.user_id;
+        const txUserId = pendingTx?.userId;
         if (txUserId) {
           const { data: authUser } = await supabase.auth.admin.getUserById(txUserId);
           const email = authUser?.user?.email;
           if (email) {
             const fullName =
-              ((authUser?.user?.user_metadata as { full_name?: string } | undefined)?.full_name) || null;
+              ((authUser?.user?.user_metadata as { full_name?: string } | undefined)?.fullName) || null;
             const { subject, html, text } = getPaymentReceivedEmail({
               customerName: fullName,
               amount: result.amount,

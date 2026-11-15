@@ -22,7 +22,7 @@ async function sendVerificationEmail(
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    await prisma.emailVerification.deleteMany({ where: { user_id: userId } });
+    await prisma.emailVerification.deleteMany({ where: { userId: userId } });
   } catch (err) {
     console.error("Failed to invalidate previous verification tokens:", err);
   }
@@ -30,9 +30,9 @@ async function sendVerificationEmail(
   try {
     await prisma.emailVerification.create({
       data: {
-        user_id: userId,
+        userId: userId,
         token,
-        expires_at: expiresAt,
+        expiresAt: expiresAt,
       },
     });
   } catch {
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Email is already verified. You can sign in." }, { status: 400 });
       }
 
-      const emailResult = await sendVerificationEmail(user.id, sanitizedEmail, user.user_metadata?.full_name || null);
+      const emailResult = await sendVerificationEmail(user.id, sanitizedEmail, user.user_metadata?.fullName || null);
       if (!emailResult.ok) {
         return NextResponse.json({ error: "Failed to send verification email. Please try again later." }, { status: 500 });
       }
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Email is already registered and verified." }, { status: 409 });
       }
 
-      const emailResult = await sendVerificationEmail(user.id, sanitizedEmail, user.user_metadata?.full_name || null);
+      const emailResult = await sendVerificationEmail(user.id, sanitizedEmail, user.user_metadata?.fullName || null);
       if (!emailResult.ok) {
         return NextResponse.json({ error: "Failed to send verification email. Please try again later." }, { status: 500 });
       }
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       password,
       email_confirm: false,
       user_metadata: {
-        full_name: sanitizedFullName || null,
+        fullName: sanitizedFullName || null,
         phone: sanitizedPhone || null,
         username: sanitizedUsername || null,
       },

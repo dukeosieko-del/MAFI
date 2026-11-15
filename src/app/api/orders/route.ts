@@ -53,7 +53,7 @@ async function maybeSendLowBalanceEmail(
   try {
     const profile = await prisma.profile.findFirst({
       where: { id: userId },
-      select: { last_low_balance_email_at: true },
+      select: { lastLowBalanceEmailAt: true },
     });
 
     if (!profile) {
@@ -61,8 +61,8 @@ async function maybeSendLowBalanceEmail(
       return;
     }
 
-    const lastSent = profile.last_low_balance_email_at
-      ? new Date(profile.last_low_balance_email_at).getTime()
+    const lastSent = profile.lastLowBalanceEmailAt
+      ? new Date(profile.lastLowBalanceEmailAt).getTime()
       : 0;
     if (lastSent && Date.now() - lastSent < LOW_BALANCE_DEBOUNCE_MS) {
       return;
@@ -82,7 +82,7 @@ async function maybeSendLowBalanceEmail(
     if (result.ok) {
       await prisma.profile.update({
         where: { id: userId },
-        data: { last_low_balance_email_at: new Date().toISOString() },
+        data: { lastLowBalanceEmailAt: new Date().toISOString() },
       });
     } else {
       console.error("[email] low-balance email failed:", result.error);
@@ -207,17 +207,17 @@ export async function POST(request: NextRequest) {
       if (!janjezService) {
         return NextResponse.json({ error: "Service not found or not available" }, { status: 404 });
       }
-      if (numQuantity < janjezService.min_quantity || numQuantity > janjezService.max_quantity) {
+      if (numQuantity < janjezService.minQuantity || numQuantity > janjezService.maxQuantity) {
         return NextResponse.json({
-          error: `Quantity must be between ${janjezService.min_quantity} and ${janjezService.max_quantity.toLocaleString()}.`,
+          error: `Quantity must be between ${janjezService.minQuantity} and ${janjezService.maxQuantity.toLocaleString()}.`,
         }, { status: 400 });
       }
       if (runs != null || interval != null) {
-        if (!janjezService.supports_drip_feed) {
+        if (!janjezService.supportsDripFeed) {
           return NextResponse.json({ error: "This service does not support drip-feed" }, { status: 400 });
         }
       }
-      expectedAmount = calculateOrderCost(janjezService.selling_price_ksh, numQuantity);
+      expectedAmount = calculateOrderCost(janjezService.sellingPriceKsh, numQuantity);
     } else {
       expectedAmount = calculateExpectedAmount(
         catalog_category_id,
@@ -253,12 +253,12 @@ export async function POST(request: NextRequest) {
       if (!debit.success) {
         const currentBalance = await prisma.profile.findFirst({
           where: { id: user.id },
-          select: { wallet_balance: true },
+          select: { walletBalance: true },
         });
-        const balance = Number(currentBalance?.wallet_balance) || 0;
+        const balance = Number(currentBalance?.walletBalance) || 0;
         await prisma.notification.create({
           data: {
-            user_id: user.id,
+            userId: user.id,
             type: "order_failed",
             title: "Order Failed - Insufficient Wallet Balance",
             message: `Your order could not be placed: insufficient wallet balance (KES ${balance.toFixed(2)}). Top up via M-Pesa first.`,
@@ -281,25 +281,25 @@ export async function POST(request: NextRequest) {
 
     const orderData = await prisma.order.create({
       data: {
-        user_id: user.id,
+        userId: user.id,
         order_id: order_id || undefined,
         category,
         subcategory,
-        service_name: subcategory,
-        sku_id: sku_id ?? janjezService?.slug ?? null,
+        serviceName: subcategory,
+        skuId: sku_id ?? janjezService?.slug ?? null,
         quantity: numQuantity,
-        link_submitted: sanitizeString(link_submitted, 500),
+        linkSubmitted: sanitizeString(link_submitted, 500),
         link: sanitizeString(link_submitted, 500) ?? "",
         amount: expectedAmount,
-        amount_paid: expectedAmount,
-        payment_reference: sanitizeString(payment_reference, 200) || null,
-        refill_guarantee: refill_guarantee ?? null,
+        amountPaid: expectedAmount,
+        paymentReference: sanitizeString(payment_reference, 200) || null,
+        refillGuarantee: refill_guarantee ?? null,
         quantity_source,
         catalog_category_id,
         janjez_service_id: janjez_service_id || null,
         status: "pending",
-        payment_status: paymentMethod === "mpesa" ? "pending_mpesa" : "paid",
-        fulfillment_status: "pending",
+        paymentStatus: paymentMethod === "mpesa" ? "pending_mpesa" : "paid",
+        fulfillmentStatus: "pending",
         runs: runs ?? null,
         interval: interval ?? null,
       },
@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
         if (fulfillmentResult.status === "processing" || fulfillmentResult.status === "already_fulfilled") {
           await prisma.notification.create({
             data: {
-              user_id: user.id,
+              userId: user.id,
               type: "order_fulfilled",
               title: "Order Accepted",
               message: `Your order ${orderData.order_id || orderData.id.slice(0, 8)} has been sent to the provider. Status: ${fulfillmentResult.status}.`,
@@ -340,13 +340,13 @@ export async function POST(request: NextRequest) {
         await prisma.order.update({
           where: { id: orderData.id },
           data: {
-            fulfillment_status: "failed",
-            fulfillment_error: errorMessage,
+            fulfillmentStatus: "failed",
+            fulfillmentError: errorMessage,
           },
         });
         await prisma.notification.create({
           data: {
-            user_id: user.id,
+            userId: user.id,
             type: "order_failed",
             title: "Order Fulfillment Failed",
             message: `Your order ${orderData.order_id || orderData.id.slice(0, 8)} could not be processed: ${errorMessage}.`,
@@ -367,9 +367,9 @@ export async function POST(request: NextRequest) {
           (async () => {
             const profile = await prisma.profile.findFirst({
               where: { id: user.id },
-              select: { full_name: true },
+              select: { fullName: true },
             });
-            const fullName = (profile?.full_name as string | null | undefined) || null;
+            const fullName = (profile?.fullName as string | null | undefined) || null;
             const { subject, html, text } = getOrderFailedEmail({
               customerName: fullName,
               orderId: orderData.order_id || orderData.id.slice(0, 8),
@@ -390,7 +390,7 @@ export async function POST(request: NextRequest) {
       try {
         await prisma.notification.create({
           data: {
-            user_id: user.id,
+            userId: user.id,
             type: "order_created",
             title: "Order Placed",
             message: `Your order ${orderData.order_id || orderData.id.slice(0, 8)} for ${subcategory} has been recorded.`,
@@ -405,9 +405,9 @@ export async function POST(request: NextRequest) {
         (async () => {
           const profile = await prisma.profile.findFirst({
             where: { id: user.id },
-            select: { full_name: true },
+            select: { fullName: true },
           });
-          const fullName = (profile?.full_name as string | null | undefined) || null;
+          const fullName = (profile?.fullName as string | null | undefined) || null;
           const { subject, html, text } = getOrderReceivedEmail({
             customerName: fullName,
             orderId: orderData.order_id || orderData.id.slice(0, 8),
@@ -445,8 +445,8 @@ export async function GET(request: NextRequest) {
     }
 
     const orders = await prisma.order.findMany({
-      where: { user_id: user.id },
-      orderBy: { created_at: "desc" },
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json({ orders: orders || [] });

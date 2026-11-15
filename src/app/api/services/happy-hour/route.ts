@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
     const count = Math.max(1, Math.min(10, parseInt(searchParams.get("count") || "1", 10)));
 
     const services = await prisma.janjez_services.findMany({
-      select: { id: true, name: true, slug: true, category: true, subcategory: true, is_active: true, supports_drip_feed: true },
-      where: { is_active: true, show_catalogue: true },
+      select: { id: true, name: true, slug: true, category: true, subcategory: true, is_active: true, supportsDripFeed: true },
+      where: { is_active: true, showCatalogue: true },
       orderBy: { id: "desc" },
     });
 

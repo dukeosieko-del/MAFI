@@ -43,9 +43,9 @@ export async function POST(request: NextRequest) {
     try {
       await prisma.passwordResetToken.create({
         data: {
-          user_id: user.id,
+          userId: user.id,
           token,
-          expires_at: expiresAt,
+          expiresAt: expiresAt,
         },
       });
     } catch {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     const resetUrl = `${SITE_URL}/auth/reset-password?token=${token}`;
-    const fullName = (user.user_metadata?.full_name as string | undefined) || null;
+    const fullName = (user.user_metadata?.fullName as string | undefined) || null;
 
     const { emailOk } = await sendTransactional({
       name: "user.password_reset",

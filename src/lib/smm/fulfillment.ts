@@ -32,24 +32,24 @@ function fireAndForgetEmail(
 }
 
 async function maybeSendOrderStatusEmail(
-  order: { id: string; order_id?: string | null; user_id: string | null; service_name?: string | null; subcategory?: string | null; link_submitted?: string | null; link?: string | null; fulfillment_error?: string | null },
+  order: { id: string; order_id?: string | null; userId: string | null; service_name?: string | null; subcategory?: string | null; link_submitted?: string | null; link?: string | null; fulfillment_error?: string | null },
   prevStatus: string | null,
   newStatus: string
 ) {
-  if (!order.user_id) return;
+  if (!order.userId) return;
   if (newStatus === prevStatus) return;
 
   try {
     const supabase = createAdminClient();
     if (!supabase) return;
-    const { data: authUser } = await supabase.auth.admin.getUserById(order.user_id);
+    const { data: authUser } = await supabase.auth.admin.getUserById(order.userId);
     const email = authUser?.user?.email;
     if (!email) return;
     const profileMeta = (authUser?.user?.user_metadata as { full_name?: string } | undefined) || {};
-    const fullName = profileMeta.full_name || null;
+    const fullName = profileMeta.fullName || null;
     const orderLabel = order.order_id || order.id.slice(0, 8);
-    const serviceName = order.service_name || order.subcategory || "Service";
-    const link = order.link_submitted || order.link || "";
+    const serviceName = order.serviceName || order.subcategory || "Service";
+    const link = order.linkSubmitted || order.link || "";
 
     if (newStatus === "fulfilled") {
       const { subject, html, text } = getOrderCompletedEmail({
@@ -66,7 +66,7 @@ async function maybeSendOrderStatusEmail(
       const { subject, html, text } = getOrderFailedEmail({
         customerName: fullName,
         orderId: orderLabel,
-        reason: order.fulfillment_error || `Order ${newStatus}`,
+        reason: order.fulfillmentError || `Order ${newStatus}`,
         link,
       });
       fireAndForgetEmail(
@@ -100,7 +100,7 @@ export async function syncProviderCatalog() {
         max: parseInt(s.max, 10),
         refill: s.refill,
         cancel: s.cancel,
-        supports_drip_feed: s.dripfeed === true,
+        supportsDripFeed: s.dripfeed === true,
         is_active: true,
         raw: s as any,
         fetched_at: new Date(),
@@ -114,7 +114,7 @@ export async function syncProviderCatalog() {
         max: parseInt(s.max, 10),
         refill: s.refill,
         cancel: s.cancel,
-        supports_drip_feed: s.dripfeed === true,
+        supportsDripFeed: s.dripfeed === true,
         is_active: true,
         raw: s as any,
         fetched_at: new Date(),
@@ -145,13 +145,13 @@ export async function getProviderServices(): Promise<ProviderService[]> {
 export interface JanjezServiceWithProvider {
   id: string;
   name: string;
-  selling_price_ksh: number;
-  provider_service_id: string | null;
-  min_quantity: number;
-  max_quantity: number;
-  supports_drip_feed: boolean;
-  supports_refill: boolean;
-  supports_cancel: boolean;
+  sellingPriceKsh: number;
+  providerServiceId: string | null;
+  minQuantity: number;
+  maxQuantity: number;
+  supportsDripFeed: boolean;
+  supportsRefill: boolean;
+  supportsCancel: boolean;
   category: string;
   subcategory: string | null;
   slug: string;
@@ -169,7 +169,7 @@ export async function resolveJanjezService(
   if (janzezServiceId) {
     const data = await prisma.janjez_services.findFirst({
       where: { id: janzezServiceId, is_active: true },
-      select: { id: true, name: true, slug: true, category: true, subcategory: true, description: true, selling_price_ksh: true, provider_service_id: true, min_quantity: true, max_quantity: true, supports_drip_feed: true, supports_refill: true, supports_cancel: true },
+      select: { id: true, name: true, slug: true, category: true, subcategory: true, description: true, sellingPriceKsh: true, providerServiceId: true, minQuantity: true, maxQuantity: true, supportsDripFeed: true, supportsRefill: true, supportsCancel: true },
     });
     if (!data) return null;
     return data as unknown as JanzezServiceWithProvider;
@@ -177,7 +177,7 @@ export async function resolveJanjezService(
 
   let query: any = prisma.janjez_services.findFirst({
     where: { is_active: true },
-    select: { id: true, name: true, slug: true, category: true, subcategory: true, description: true, selling_price_ksh: true, provider_service_id: true, min_quantity: true, max_quantity: true, supports_drip_feed: true, supports_refill: true, supports_cancel: true },
+    select: { id: true, name: true, slug: true, category: true, subcategory: true, description: true, sellingPriceKsh: true, providerServiceId: true, minQuantity: true, maxQuantity: true, supportsDripFeed: true, supportsRefill: true, supportsCancel: true },
   });
 
   if (skuId) {
@@ -207,8 +207,8 @@ export async function fulfillOrder(orderId: string) {
     throw new Error("Order not found");
   }
 
-  if (order.provider_order_id) {
-    return { status: "already_fulfilled", providerOrderId: order.provider_order_id };
+  if (order.providerOrderId) {
+    return { status: "already_fulfilled", providerOrderId: order.providerOrderId };
   }
 
   if (process.env.SMM_FULFILLMENT_ENABLED === "false") {
@@ -216,37 +216,37 @@ export async function fulfillOrder(orderId: string) {
     await logFulfillment(orderId, "place", "fulfillment_disabled", null, null, message);
     await prisma.order.update({
       where: { id: orderId },
-      data: { fulfillment_status: "fulfillment_disabled", fulfillment_error: message },
+      data: { fulfillmentStatus: "fulfillment_disabled", fulfillmentError: message },
     });
     throw new Error(message);
   }
 
   // Check retry count
-  const retryCount = order.retry_count || 0;
+  const retryCount = order.retryCount || 0;
   if (retryCount >= MAX_RETRIES) {
     const message = "Max retries exceeded";
     await logFulfillment(order.id, "place", "failed", null, null, message);
     await prisma.order.update({
       where: { id: order.id },
-      data: { fulfillment_status: "failed", fulfillment_error: message },
+      data: { fulfillmentStatus: "failed", fulfillmentError: message },
     });
     throw new Error(message);
   }
 
   const category = order.category || "";
   const subcategory = order.subcategory || "";
-  const sku = order.sku_id || order.service_name || "";
+  const sku = order.skuId || order.serviceName || "";
 
   let providerService: ProviderService | null = null;
   let resolvedService: JanzezServiceWithProvider | null = null;
   let quantity = order.quantity || 1;
   let providerRate = 0;
 
-  const janzezService = await resolveJanjezService(order.sku_id, order.catalog_category_id, order.janjez_service_id);
-  if (janzezService && janzezService.provider_service_id) {
+  const janzezService = await resolveJanjezService(order.skuId, order.catalogCategoryId, order.janjez_service_id);
+  if (janzezService && janzezService.providerServiceId) {
     resolvedService = janzezService;
     const providerData = await prisma.providerService.findFirst({
-      where: { id: janzezService.provider_service_id },
+      where: { id: janzezService.providerServiceId },
     });
 
     if (providerData) {
@@ -260,7 +260,7 @@ export async function fulfillOrder(orderId: string) {
         max: String(providerData.max),
         refill: providerData.refill,
         cancel: providerData.cancel,
-        dripfeed: providerData.supports_drip_feed,
+        dripfeed: providerData.supportsDripFeed,
       };
       providerRate = parseFloat(providerData.rate);
       quantity = Math.min(
@@ -274,7 +274,7 @@ export async function fulfillOrder(orderId: string) {
     await logFulfillment(order.id, "place", "failed", null, null, "No provider mapping found for this service. Assign a provider_service_id to the Janjez service.");
     await prisma.order.update({
       where: { id: order.id },
-      data: { fulfillment_status: "failed", fulfillment_error: "No provider mapping found for this service. Contact support." },
+      data: { fulfillmentStatus: "failed", fulfillmentError: "No provider mapping found for this service. Contact support." },
     });
     throw new Error("No provider mapping found for this service");
   }
@@ -292,7 +292,7 @@ export async function fulfillOrder(orderId: string) {
       await logFulfillment(order.id, "place", "failed", null, null, message);
       await prisma.order.update({
         where: { id: order.id },
-        data: { fulfillment_status: "failed", fulfillment_error: message },
+        data: { fulfillmentStatus: "failed", fulfillmentError: message },
       });
       throw new Error(message);
     }
@@ -301,7 +301,7 @@ export async function fulfillOrder(orderId: string) {
     await logFulfillment(order.id, "place", "error", null, null, message);
     await prisma.order.update({
       where: { id: order.id },
-      data: { fulfillment_status: "failed", fulfillment_error: message },
+      data: { fulfillmentStatus: "failed", fulfillmentError: message },
     });
     throw new Error(message);
   }
@@ -310,7 +310,7 @@ export async function fulfillOrder(orderId: string) {
   try {
     response = await placeProviderOrder({
       service: providerService.service,
-      link: order.link_submitted || "",
+      link: order.linkSubmitted || "",
       quantity,
       ...(order.runs != null ? { runs: order.runs } : {}),
       ...(order.interval != null ? { interval: order.interval } : {}),
@@ -325,12 +325,12 @@ export async function fulfillOrder(orderId: string) {
     await prisma.order.update({
       where: { id: order.id },
       data: {
-        provider_service_id: String(providerService.service),
-        provider_order_id: String(response.order),
+        providerServiceId: String(providerService.service),
+        providerOrderId: String(response.order),
         provider_status: "pending",
-        provider_charge: expectedCharge,
-        provider_currency: "USD",
-        fulfillment_status: "processing",
+        providerCharge: expectedCharge,
+        providerCurrency: "USD",
+        fulfillmentStatus: "processing",
         fulfilled_at: new Date(),
       },
     });
@@ -359,10 +359,10 @@ async function handleFulfillmentFailure(
   await prisma.order.update({
     where: { id: order.id },
     data: {
-      fulfillment_status: newStatus,
-      fulfillment_error: errorMessage,
-      retry_count: nextRetryCount,
-      next_retry_at: nextRetryAt,
+      fulfillmentStatus: newStatus,
+      fulfillmentError: errorMessage,
+      retryCount: nextRetryCount,
+      nextRetryAt: nextRetryAt,
     },
   });
 
@@ -379,15 +379,15 @@ async function refundOrder(
   order: { user_id?: string | null; amount_paid?: number | null; id: string },
   errorMessage: string
 ) {
-  const userId = order.user_id;
-  const amountPaid = order.amount_paid;
+  const userId = order.userId;
+  const amountPaid = order.amountPaid;
 
   if (userId && amountPaid && amountPaid > 0) {
     try {
       await creditWallet(userId, amountPaid);
       await prisma.order.update({
         where: { id: order.id },
-        data: { payment_status: "refunded" },
+        data: { paymentStatus: "refunded" },
       });
       console.log(`[fulfillment] Refunded ${amountPaid} to user ${userId} for order ${order.id}`);
     } catch (refundError) {
@@ -403,7 +403,7 @@ async function notifyAdminsOfFailure(
 ) {
   try {
     await createNotification({
-      userId: order.user_id as string,
+      userId: order.userId as string,
       audience: "admin",
       category: "fulfillment_failure",
       severity: "critical",
@@ -430,7 +430,7 @@ export async function cancelOrder(orderId: string) {
     throw new Error("Order not found");
   }
 
-  if (!order.provider_order_id) {
+  if (!order.providerOrderId) {
     return { status: "not_fulfilled", error: "Order has no provider order to cancel" };
   }
 
@@ -445,25 +445,25 @@ export async function cancelOrder(orderId: string) {
     return { status: "error", error: "Unable to resolve service for cancellation" };
   }
 
-  if (!resolvedService.supports_cancel) {
+  if (!resolvedService.supportsCancel) {
     return { status: "cancel_not_supported", error: "This service does not support cancellation" };
   }
 
   try {
-    await createProviderCancel([String(order.provider_order_id)]);
+    await createProviderCancel([String(order.providerOrderId)]);
     await prisma.order.update({
       where: { id: order.id },
       data: {
-        fulfillment_status: "cancelled",
+        fulfillmentStatus: "cancelled",
         provider_status: "Cancelled",
         status: "cancelled",
       },
     });
-    await logFulfillment(order.id, "cancel", "cancelled", { order_id: order.provider_order_id }, null);
+    await logFulfillment(order.id, "cancel", "cancelled", { order_id: order.providerOrderId }, null);
     return { status: "cancelled" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Provider cancellation failed";
-    await logFulfillment(order.id, "cancel", "error", { order_id: order.provider_order_id }, null, message);
+    await logFulfillment(order.id, "cancel", "error", { order_id: order.providerOrderId }, null, message);
     return { status: "error", error: message };
   }
 }
@@ -482,7 +482,7 @@ export async function refillOrder(orderId: string) {
     throw new Error("Order not found");
   }
 
-  if (!order.provider_order_id) {
+  if (!order.providerOrderId) {
     return { status: "not_fulfilled", error: "Order has no provider order to refill" };
   }
 
@@ -497,21 +497,21 @@ export async function refillOrder(orderId: string) {
     return { status: "error", error: "Unable to resolve service for refill" };
   }
 
-  if (!resolvedService.supports_refill) {
+  if (!resolvedService.supportsRefill) {
     return { status: "refill_not_supported", error: "This service does not support refill" };
   }
 
   try {
-    await createProviderRefill([String(order.provider_order_id)]);
+    await createProviderRefill([String(order.providerOrderId)]);
     await prisma.order.update({
       where: { id: order.id },
       data: { provider_status: "Pending" },
     });
-    await logFulfillment(order.id, "refill", "processing", { order_id: order.provider_order_id }, null);
+    await logFulfillment(order.id, "refill", "processing", { order_id: order.providerOrderId }, null);
     return { status: "refill_submitted" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Provider refill failed";
-    await logFulfillment(order.id, "refill", "error", { order_id: order.provider_order_id }, null, message);
+    await logFulfillment(order.id, "refill", "error", { order_id: order.providerOrderId }, null, message);
     return { status: "error", error: message };
   }
 }
@@ -534,20 +534,20 @@ export async function syncOrderStatuses(orderIds?: string[]) {
 
   const orders = await prisma.order.findMany({
     where: {
-      provider_order_id: { not: null },
-      ...(orderIds && orderIds.length > 0 ? { id: { in: orderIds } } : { fulfillment_status: { in: ["pending", "processing"] } }),
+      providerOrderId: { not: null },
+      ...(orderIds && orderIds.length > 0 ? { id: { in: orderIds } } : { fulfillmentStatus: { in: ["pending", "processing"] } }),
     },
-    select: { id: true, order_id: true, user_id: true, provider_order_id: true, fulfillment_status: true, provider_status: true, service_name: true, subcategory: true, link_submitted: true, link: true, fulfillment_error: true },
+    select: { id: true, order_id: true, userId: true, providerOrderId: true, fulfillmentStatus: true, provider_status: true, serviceName: true, subcategory: true, linkSubmitted: true, link: true, fulfillmentError: true },
   });
 
   if (!orders || orders.length === 0) return;
 
   const statuses = await getProviderMultipleStatus(
-    orders.map((o) => o.provider_order_id as string)
+    orders.map((o) => o.providerOrderId as string)
   );
 
   for (const order of orders) {
-    const status = statuses[order.provider_order_id as string];
+    const status = statuses[order.providerOrderId as string];
     if (!status) continue;
 
     const mapped = mapProviderStatus(status.status);
@@ -555,22 +555,22 @@ export async function syncOrderStatuses(orderIds?: string[]) {
 
     const updates: Record<string, unknown> = {
       provider_status: status.status || null,
-      provider_start_count: status.start_count || null,
-      provider_remains: status.remains || null,
-      provider_charge: status.charge ? parseFloat(status.charge) : null,
-      provider_currency: status.currency || "USD",
-      fulfillment_status: mapped,
+      providerStartCount: status.start_count || null,
+      providerRemains: status.remains || null,
+      providerCharge: status.charge ? parseFloat(status.charge) : null,
+      providerCurrency: status.currency || "USD",
+      fulfillmentStatus: mapped,
     };
 
-    const prevStatus = order.fulfillment_status;
-    const newStatus = updates.fulfillment_status as string;
+    const prevStatus = order.fulfillmentStatus;
+    const newStatus = updates.fulfillmentStatus as string;
     if (prevStatus !== newStatus || status.status !== order.provider_status) {
       if (unknown) {
         console.warn(`Unknown provider status "${status.status}" for order ${order.id} (${order.order_id})`);
       }
       await prisma.notification.create({
         data: {
-          user_id: order.user_id as string,
+          userId: order.userId as string,
           type: "order_update",
           title: `Order ${order.order_id || order.id.slice(0, 8)} status updated`,
           message: `Status changed from ${prevStatus || "pending"} to ${newStatus}. Provider: ${status.status || "unknown"}.`,
@@ -581,7 +581,7 @@ export async function syncOrderStatuses(orderIds?: string[]) {
       // Admin notification on failure/cancellation
       if (newStatus === "failed" || newStatus === "cancelled") {
         await createNotification({
-          userId: order.user_id as string,
+          userId: order.userId as string,
           audience: "admin",
           category: "fulfillment_failure",
           severity: "critical",
@@ -616,26 +616,26 @@ export async function requestRefill(orderId: string) {
 
   const order = await prisma.order.findFirst({
     where: { id: orderId },
-    select: { provider_order_id: true, provider_service_id: true },
+    select: { providerOrderId: true, providerServiceId: true },
   });
 
-  if (!order?.provider_order_id) {
+  if (!order?.providerOrderId) {
     throw new Error("Order not fulfilled yet");
   }
 
-  const result = await createProviderRefill([order.provider_order_id]);
+  const result = await createProviderRefill([order.providerOrderId]);
   const refillResult = result[0];
 
   if (refillResult && typeof refillResult.refill === "number") {
     await prisma.order.update({
       where: { id: orderId },
       data: {
-        fulfillment_status: "processing",
+        fulfillmentStatus: "processing",
         provider_status: "refilled",
         fulfilled_at: new Date(),
       },
     });
-    await logFulfillment(orderId, "refill", "requested", { order: order.provider_order_id }, refillResult);
+    await logFulfillment(orderId, "refill", "requested", { order: order.providerOrderId }, refillResult);
     return { refillId: refillResult.refill };
   }
 
@@ -644,7 +644,7 @@ export async function requestRefill(orderId: string) {
       ? refillResult.refill.error
       : "Refill failed";
 
-  await logFulfillment(orderId, "refill", "failed", { order: order.provider_order_id }, refillResult, message);
+  await logFulfillment(orderId, "refill", "failed", { order: order.providerOrderId }, refillResult, message);
   throw new Error(message);
 }
 
@@ -654,25 +654,25 @@ export async function requestCancel(orderId: string) {
 
   const order = await prisma.order.findFirst({
     where: { id: orderId },
-    select: { provider_order_id: true },
+    select: { providerOrderId: true },
   });
 
-  if (!order?.provider_order_id) {
+  if (!order?.providerOrderId) {
     throw new Error("Order not fulfilled yet");
   }
 
-  const result = await createProviderCancel([order.provider_order_id]);
+  const result = await createProviderCancel([order.providerOrderId]);
   const cancelResult = result[0];
 
   if (cancelResult && typeof cancelResult.cancel === "number") {
     await prisma.order.update({
       where: { id: orderId },
       data: {
-        fulfillment_status: "cancelled",
+        fulfillmentStatus: "cancelled",
         provider_status: "cancelled",
       },
     });
-    await logFulfillment(orderId, "cancel", "cancelled", { order: order.provider_order_id }, cancelResult);
+    await logFulfillment(orderId, "cancel", "cancelled", { order: order.providerOrderId }, cancelResult);
     return { cancelId: cancelResult.cancel };
   }
 
@@ -681,7 +681,7 @@ export async function requestCancel(orderId: string) {
       ? cancelResult.cancel.error
       : "Cancel failed";
 
-  await logFulfillment(orderId, "cancel", "failed", { order: order.provider_order_id }, cancelResult, message);
+  await logFulfillment(orderId, "cancel", "failed", { order: order.providerOrderId }, cancelResult, message);
   throw new Error(message);
 }
 

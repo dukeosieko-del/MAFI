@@ -31,14 +31,14 @@ export async function debitWallet(
       // Lock the profile row for update to prevent race conditions
       const profile = await tx.profiles.findFirst({
         where: { id: userId },
-        select: { id: true, wallet_balance: true },
+        select: { id: true, walletBalance: true },
       });
 
       if (!profile) {
         return { success: false, newBalance: 0, error: "Profile not found" };
       }
 
-      const currentBalance = Number(profile.wallet_balance) || 0;
+      const currentBalance = Number(profile.walletBalance) || 0;
       if (currentBalance < amount) {
         return { success: false, newBalance: currentBalance, error: "Insufficient balance" };
       }
@@ -48,17 +48,17 @@ export async function debitWallet(
       // Update profile balance
       await tx.profiles.update({
         where: { id: userId },
-        data: { wallet_balance: newBalance },
+        data: { walletBalance: newBalance },
       });
 
       // Create wallet transaction record
       await tx.wallet_transactions.create({
         data: {
-          user_id: userId,
+          userId: userId,
           type: "debit",
           amount,
           currency: "KES",
-          payment_method: "wallet",
+          paymentMethod: "wallet",
           status: "completed",
           notes: "Wallet debit",
         },
@@ -88,30 +88,30 @@ export async function creditWallet(
       // Lock the profile row for update
       const profile = await tx.profiles.findFirst({
         where: { id: userId },
-        select: { id: true, wallet_balance: true },
+        select: { id: true, walletBalance: true },
       });
 
       if (!profile) {
         return { newBalance: 0, error: "Profile not found" };
       }
 
-      const currentBalance = Number(profile.wallet_balance) || 0;
+      const currentBalance = Number(profile.walletBalance) || 0;
       const newBalance = currentBalance + amount;
 
       // Update profile balance
       await tx.profiles.update({
         where: { id: userId },
-        data: { wallet_balance: newBalance },
+        data: { walletBalance: newBalance },
       });
 
       // Create wallet transaction record
       await tx.wallet_transactions.create({
         data: {
-          user_id: userId,
+          userId: userId,
           type: "credit",
           amount,
           currency: "KES",
-          payment_method: "wallet",
+          paymentMethod: "wallet",
           status: "completed",
           notes: "Wallet credit",
         },
