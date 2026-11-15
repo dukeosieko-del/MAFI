@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { fulfillOrder, resolveJanjezService } from "@/lib/smm/fulfillment";
 import { getUserFromRequest } from "@/lib/server/auth-helpers";
 import { rateLimit } from "@/lib/server/rate-limiter";
@@ -43,7 +43,6 @@ function fireAndForgetEmail(
 }
 
 async function maybeSendLowBalanceEmail(
-  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
   userId: string,
   email: string,
   fullName: string | null,
@@ -52,19 +51,18 @@ async function maybeSendLowBalanceEmail(
   if (newBalance >= LOW_BALANCE_THRESHOLD_KES) return;
 
   try {
-    const { data: profile, error: profileErr } = await supabase
-      .from("profiles")
-      .select("last_low_balance_email_at")
-      .eq("id", userId)
-      .single();
+    const profile = await prisma.profiles.findFirst({
+      where: { id: userId },
+      select: { last_low_balance_email_at: true },
+    });
 
-    if (profileErr) {
-      console.error("[email] failed to read low-balance debounce:", profileErr);
+    if (!profile) {
+      console.error("[email] failed to read low-balance debounce: profile not found");
       return;
     }
 
-    const lastSent = profile?.last_low_balance_email_at
-      ? new Date(profile.last_low_balance_email_at as string).getTime()
+    const lastSent = profile.last_low_balance_email_at
+      ? new Date(profile.last_low_balance_email_at).getTime()
       : 0;
     if (lastSent && Date.now() - lastSent < LOW_BALANCE_DEBOUNCE_MS) {
       return;
@@ -82,10 +80,10 @@ async function maybeSendLowBalanceEmail(
       text,
     });
     if (result.ok) {
-      await supabase
-        .from("profiles")
-        .update({ last_low_balance_email_at: new Date().toISOString() })
-        .eq("id", userId);
+      await prisma.profiles.update({
+        where: { id: userId },
+        data: { last_low_balance_email_at: new Date().toISOString() },
+      });
     } else {
       console.error("[email] low-balance email failed:", result.error);
     }
@@ -253,18 +251,19 @@ export async function POST(request: NextRequest) {
       const debit = await debitWallet(supabase as any, user.id, expectedAmount);
 
       if (!debit.success) {
-        const currentBalance = await supabase
-          .from("profiles")
-          .select("wallet_balance")
-          .eq("id", user.id)
-          .single();
-        const balance = Number(currentBalance.data?.wallet_balance) || 0;
-        await supabase.from("notifications").insert({
-          user_id: user.id,
-          type: "order_failed",
-          title: "Order Failed - Insufficient Wallet Balance",
-          message: `Your order could not be placed: insufficient wallet balance (KES ${balance.toFixed(2)}). Top up via M-Pesa first.`,
-          link: "/pay",
+        const currentBalance = await prisma.profiles.findFirst({
+          where: { id: user.id },
+          select: { wallet_balance: true },
+        });
+        const balance = Number(currentBalance?.wallet_balance) || 0;
+        await prisma.notifications.create({
+          data: {
+            user_id: user.id,
+            type: "order_failed",
+            title: "Order Failed - Insufficient Wallet Balance",
+            message: `Your order could not be placed: insufficient wallet balance (KES ${balance.toFixed(2)}). Top up via M-Pesa first.`,
+            link: "/pay",
+          },
         });
         return NextResponse.json({
           error: "Insufficient wallet balance. Please top up your wallet before placing an order.",
@@ -274,15 +273,14 @@ export async function POST(request: NextRequest) {
       newBalance = debit.newBalance;
     }
     fireAndForgetEmail(
-      maybeSendLowBalanceEmail(supabase, user.id, user.email, null, newBalance).then(
+      maybeSendLowBalanceEmail(user.id, user.email, null, newBalance).then(
         () => ({ ok: true })
       ),
       "low-wallet-balance"
     );
 
-    const { data, error } = await supabase
-      .from("orders")
-      .insert({
+    const orderData = await prisma.orders.create({
+      data: {
         user_id: user.id,
         order_id: order_id || undefined,
         category,
@@ -304,13 +302,8 @@ export async function POST(request: NextRequest) {
         fulfillment_status: "pending",
         runs: runs ?? null,
         interval: interval ?? null,
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
+      },
+    });
 
     // M-Pesa orders are settled by the M-Pesa callback: the order is already
     // created and linked (related_order_id) so the money follows the exact
@@ -318,65 +311,68 @@ export async function POST(request: NextRequest) {
     if (paymentMethod === "mpesa") {
       return NextResponse.json({
         ok: true,
-        order: data,
+        order: orderData,
         mpesa: {
           amount: expectedAmount,
-          order_id: data?.order_id || data?.id,
+          order_id: orderData.order_id || orderData.id,
         },
       });
     }
 
-    if (data?.id) {
+    if (orderData.id) {
       try {
-        const fulfillmentResult = await fulfillOrder(data.id);
+        const fulfillmentResult = await fulfillOrder(orderData.id);
 
         if (fulfillmentResult.status === "processing" || fulfillmentResult.status === "already_fulfilled") {
-          await supabase.from("notifications").insert({
-            user_id: user.id,
-            type: "order_fulfilled",
-            title: "Order Accepted",
-            message: `Your order ${data.order_id || data.id.slice(0, 8)} has been sent to the provider. Status: ${fulfillmentResult.status}.`,
-            link: "/orders/all",
+          await prisma.notifications.create({
+            data: {
+              user_id: user.id,
+              type: "order_fulfilled",
+              title: "Order Accepted",
+              message: `Your order ${orderData.order_id || orderData.id.slice(0, 8)} has been sent to the provider. Status: ${fulfillmentResult.status}.`,
+              link: "/orders/all",
+            },
           });
         }
       } catch (fulfillError) {
-        console.error("Auto-fulfillment failed for order", data.id, fulfillError);
+        console.error("Auto-fulfillment failed for order", orderData.id, fulfillError);
         const errorMessage = fulfillError instanceof Error ? fulfillError.message : "Auto-fulfillment error";
-        await supabase
-          .from("orders")
-          .update({
+        await prisma.orders.update({
+          where: { id: orderData.id },
+          data: {
             fulfillment_status: "failed",
             fulfillment_error: errorMessage,
-          })
-          .eq("id", data.id);
-        await supabase.from("notifications").insert({
-          user_id: user.id,
-          type: "order_failed",
-          title: "Order Fulfillment Failed",
-          message: `Your order ${data.order_id || data.id.slice(0, 8)} could not be processed: ${errorMessage}.`,
-          link: "/orders/all",
+          },
+        });
+        await prisma.notifications.create({
+          data: {
+            user_id: user.id,
+            type: "order_failed",
+            title: "Order Fulfillment Failed",
+            message: `Your order ${orderData.order_id || orderData.id.slice(0, 8)} could not be processed: ${errorMessage}.`,
+            link: "/orders/all",
+          },
         });
 
         try {
           const refund = await creditWallet(supabase as any, user.id, expectedAmount);
           if (refund.error) {
-            console.error("Wallet refund failed for order", data.id, refund.error);
+            console.error("Wallet refund failed for order", orderData.id, refund.error);
           }
         } catch (refundError) {
-          console.error("Wallet refund failed for order", data.id, refundError);
+          console.error("Wallet refund failed for order", orderData.id, refundError);
         }
 
         fireAndForgetEmail(
           (async () => {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("full_name")
-              .eq("id", user.id)
-              .single();
+            const profile = await prisma.profiles.findFirst({
+              where: { id: user.id },
+              select: { full_name: true },
+            });
             const fullName = (profile?.full_name as string | null | undefined) || null;
             const { subject, html, text } = getOrderFailedEmail({
               customerName: fullName,
-              orderId: data.order_id || data.id.slice(0, 8),
+              orderId: orderData.order_id || orderData.id.slice(0, 8),
               reason: errorMessage,
               link: sanitizeString(link_submitted, 500) ?? "",
             });
@@ -392,28 +388,29 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        await supabase.from("notifications").insert({
-          user_id: user.id,
-          type: "order_created",
-          title: "Order Placed",
-          message: `Your order ${data.order_id || data.id.slice(0, 8)} for ${subcategory} has been recorded.`,
-          link: "/orders/all",
+        await prisma.notifications.create({
+          data: {
+            user_id: user.id,
+            type: "order_created",
+            title: "Order Placed",
+            message: `Your order ${orderData.order_id || orderData.id.slice(0, 8)} for ${subcategory} has been recorded.`,
+            link: "/orders/all",
+          },
         });
       } catch (notifErr) {
-        console.error("Failed to create notification for order", data.id, notifErr);
+        console.error("Failed to create notification for order", orderData.id, notifErr);
       }
 
       fireAndForgetEmail(
         (async () => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("id", user.id)
-            .single();
+          const profile = await prisma.profiles.findFirst({
+            where: { id: user.id },
+            select: { full_name: true },
+          });
           const fullName = (profile?.full_name as string | null | undefined) || null;
           const { subject, html, text } = getOrderReceivedEmail({
             customerName: fullName,
-            orderId: data.order_id || data.id.slice(0, 8),
+            orderId: orderData.order_id || orderData.id.slice(0, 8),
             service: janjezService?.name || subcategory || "Service",
             quantity: numQuantity,
             amount: expectedAmount,
@@ -430,7 +427,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ order: data }, { status: 201 });
+    return NextResponse.json({ order: orderData }, { status: 201 });
   } catch (error) {
     console.error("Order creation error:", error);
     return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
@@ -447,22 +444,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = createAdminClient();
-    if (!supabase) {
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
-    }
+    const orders = await prisma.orders.findMany({
+      where: { user_id: user.id },
+      orderBy: { created_at: "desc" },
+    });
 
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ orders: data || [] });
+    return NextResponse.json({ orders: orders || [] });
   } catch {
     return NextResponse.json({ error: "Failed to load orders" }, { status: 500 });
   }

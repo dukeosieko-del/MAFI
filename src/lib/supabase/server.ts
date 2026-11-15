@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { prisma } from "@/lib/supabase/admin";
 
 type CookieToSet = {
   name: string;
@@ -34,3 +35,5 @@ export async function createClient() {
     },
   });
 }
+
+export { prisma };

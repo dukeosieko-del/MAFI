@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 
 export type NotificationAudience = "user" | "admin";
 export type NotificationSeverity = "info" | "success" | "warning" | "error" | "critical";
@@ -46,27 +46,35 @@ export async function createNotification(
   const supabase = createAdminClient();
   if (!supabase) return null;
 
-  const row = {
-    user_id: input.userId,
-    audience: input.audience ?? "user",
-    category: input.category ?? "system",
-    title: input.title,
-    body: input.body ?? null,
-    link: input.link ?? null,
-    severity: input.severity ?? "info",
-  };
+  try {
+    const row = await prisma.notifications.create({
+      data: {
+        user_id: input.userId,
+        audience: input.audience ?? "user",
+        category: input.category ?? "system",
+        title: input.title,
+        body: input.body ?? null,
+        link: input.link ?? null,
+        severity: input.severity ?? "info",
+      },
+    });
 
-  const { data, error } = await supabase
-    .from("notifications")
-    .insert(row)
-    .select("*")
-    .single();
-
-  if (error) {
-    console.error("createNotification error:", error.message);
+    return {
+      id: row.id,
+      user_id: row.user_id,
+      audience: row.audience as NotificationAudience,
+      category: row.category as NotificationCategory,
+      title: row.title,
+      body: row.body,
+      link: row.link,
+      severity: row.severity as NotificationSeverity,
+      read_at: row.read_at?.toISOString() || null,
+      created_at: row.created_at.toISOString(),
+    };
+  } catch (err) {
+    console.error("createNotification error:", err);
     return null;
   }
-  return data as Notification;
 }
 
 export async function notifyUser(
@@ -92,38 +100,37 @@ export async function notifyAdmins(
   const supabase = createAdminClient();
   if (!supabase) return [];
 
-  const { data: admins, error: adminErr } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("role", "admin");
+  try {
+    const admins = await prisma.profiles.findMany({
+      where: { role: "admin" },
+      select: { id: true },
+    });
 
-  if (adminErr) {
-    console.error("notifyAdmins: failed to load admins", adminErr.message);
+    if (!admins || admins.length === 0) return [];
+
+    const rows = admins.map((a) => ({
+      user_id: a.id,
+      audience: "admin" as NotificationAudience,
+      category,
+      title: payload.title,
+      body: payload.body ?? null,
+      link: payload.link ?? null,
+      severity: payload.severity ?? "info",
+    }));
+
+    const created = await prisma.notifications.createMany({
+      data: rows,
+    });
+
+    return created ? rows.map((r, i) => ({
+      ...r,
+      read_at: null,
+      created_at: new Date().toISOString(),
+    })) : [];
+  } catch (err) {
+    console.error("notifyAdmins insert error:", err);
     return [];
   }
-
-  if (!admins || admins.length === 0) return [];
-
-  const rows = admins.map((a) => ({
-    user_id: a.id,
-    audience: "admin" as NotificationAudience,
-    category,
-    title: payload.title,
-    body: payload.body ?? null,
-    link: payload.link ?? null,
-    severity: payload.severity ?? "info",
-  }));
-
-  const { data, error } = await supabase
-    .from("notifications")
-    .insert(rows)
-    .select("*");
-
-  if (error) {
-    console.error("notifyAdmins insert error:", error.message);
-    return [];
-  }
-  return (data || []) as Notification[];
 }
 
 export async function markRead(
@@ -133,45 +140,43 @@ export async function markRead(
   const supabase = createAdminClient();
   if (!supabase) return false;
 
-  const { error: updErr } = await supabase
-    .from("notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("id", notificationId);
+  try {
+    const notification = await prisma.notifications.findFirst({
+      where: { id: notificationId },
+    });
 
-  if (updErr) {
-    console.error("markRead error:", updErr.message);
+    if (!notification || notification.user_id !== userId) {
+      console.error("markRead ownership mismatch");
+      return false;
+    }
+
+    await prisma.notifications.update({
+      where: { id: notificationId },
+      data: { read_at: new Date() },
+    });
+
+    return true;
+  } catch (err) {
+    console.error("markRead error:", err);
     return false;
   }
-
-  const { data: owner, error: ownerErr } = await supabase
-    .from("notifications")
-    .select("user_id")
-    .eq("id", notificationId)
-    .single();
-
-  if (ownerErr || !owner || owner.user_id !== userId) {
-    console.error("markRead ownership mismatch");
-    return false;
-  }
-  return true;
 }
 
 export async function markAllRead(userId: string): Promise<number> {
   const supabase = createAdminClient();
   if (!supabase) return 0;
 
-  const { data, error } = await supabase
-    .from("notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("user_id", userId)
-    .is("read_at", null)
-    .select("id");
+  try {
+    const result = await prisma.notifications.updateMany({
+      where: { user_id: userId, read_at: null },
+      data: { read_at: new Date() },
+    });
 
-  if (error) {
-    console.error("markAllRead error:", error.message);
+    return result.count;
+  } catch (err) {
+    console.error("markAllRead error:", err);
     return 0;
   }
-  return data?.length ?? 0;
 }
 
 export interface ListNotificationsOptions {
@@ -193,41 +198,50 @@ export async function listNotifications(
   const supabase = createAdminClient();
   if (!supabase) return { notifications: [], nextCursor: null };
 
-  const limit = Math.min(Math.max(options.limit ?? 20, 1), 100);
-  const audience = options.audience ?? "user";
+  try {
+    const limit = Math.min(Math.max(options.limit ?? 20, 1), 100);
+    const audience = options.audience ?? "user";
 
-  let query = supabase
-    .from("notifications")
-    .select("*");
+    const where: any = audience === "admin"
+      ? { audience: "admin" }
+      : { audience: "user", user_id: userId };
 
-  if (audience === "admin") {
-    query = query.eq("audience", "admin");
-  } else {
-    query = query.eq("audience", "user").eq("user_id", userId);
-  }
+    if (options.unreadOnly) {
+      where.read_at = null;
+    }
 
-  if (options.unreadOnly) {
-    query = query.is("read_at", null);
-  }
+    const [notifications, hasMore] = await Promise.all([
+      prisma.notifications.findMany({
+        where,
+        orderBy: { created_at: "desc" },
+        take: limit + 1,
+        options.cursor ? { cursor: { created_at: options.cursor } } : {},
+      } as any),
+      prisma.notifications.count({ where }),
+    ]);
 
-  if (options.cursor) {
-    query = query.lt("created_at", options.cursor);
-  }
+    const rows = notifications.slice(0, limit);
+    const nextCursor = rows.length > limit ? rows[rows.length - 1].created_at.toISOString() : null;
 
-  query = query.order("created_at", { ascending: false }).limit(limit + 1);
-
-  const { data, error } = await query;
-  if (error) {
-    console.error("listNotifications error:", error.message);
+    return {
+      notifications: rows.map((n) => ({
+        id: n.id,
+        user_id: n.user_id,
+        audience: n.audience as NotificationAudience,
+        category: n.category as NotificationCategory,
+        title: n.title,
+        body: n.body,
+        link: n.link,
+        severity: n.severity as NotificationSeverity,
+        read_at: n.read_at?.toISOString() || null,
+        created_at: n.created_at.toISOString(),
+      })),
+      nextCursor,
+    };
+  } catch (err) {
+    console.error("listNotifications error:", err);
     return { notifications: [], nextCursor: null };
   }
-
-  const rows = (data || []) as Notification[];
-  const hasMore = rows.length > limit;
-  const slice = hasMore ? rows.slice(0, limit) : rows;
-  const nextCursor = hasMore ? slice[slice.length - 1].created_at : null;
-
-  return { notifications: slice, nextCursor };
 }
 
 export async function deleteNotification(
@@ -237,25 +251,23 @@ export async function deleteNotification(
   const supabase = createAdminClient();
   if (!supabase) return false;
 
-  const { error: ownerErr, data: owner } = await supabase
-    .from("notifications")
-    .select("user_id")
-    .eq("id", notificationId)
-    .single();
+  try {
+    const notification = await prisma.notifications.findFirst({
+      where: { id: notificationId },
+    });
 
-  if (ownerErr || !owner || owner.user_id !== userId) {
-    console.error("deleteNotification ownership mismatch");
+    if (!notification || notification.user_id !== userId) {
+      console.error("deleteNotification ownership mismatch");
+      return false;
+    }
+
+    await prisma.notifications.delete({
+      where: { id: notificationId },
+    });
+
+    return true;
+  } catch (err) {
+    console.error("deleteNotification error:", err);
     return false;
   }
-
-  const { error } = await supabase
-    .from("notifications")
-    .delete()
-    .eq("id", notificationId);
-
-  if (error) {
-    console.error("deleteNotification error:", error.message);
-    return false;
-  }
-  return true;
 }

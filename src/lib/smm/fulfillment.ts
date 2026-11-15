@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import {
   fetchProviderServices,
   placeProviderOrder,
@@ -11,6 +11,7 @@ import type { ProviderService } from "./provider";
 import { sendEmail } from "@/lib/email/mailer";
 import { getOrderCompletedEmail, getOrderFailedEmail } from "@/lib/email/templates";
 import { createNotification } from "@/lib/notifications";
+import { creditWallet } from "@/lib/wallet";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [60, 300, 900]; // 1min, 5min, 15min
@@ -31,7 +32,6 @@ function fireAndForgetEmail(
 }
 
 async function maybeSendOrderStatusEmail(
-  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
   order: { id: string; order_id?: string | null; user_id: string | null; service_name?: string | null; subcategory?: string | null; link_submitted?: string | null; link?: string | null; fulfillment_error?: string | null },
   prevStatus: string | null,
   newStatus: string
@@ -40,6 +40,8 @@ async function maybeSendOrderStatusEmail(
   if (newStatus === prevStatus) return;
 
   try {
+    const supabase = createAdminClient();
+    if (!supabase) return;
     const { data: authUser } = await supabase.auth.admin.getUserById(order.user_id);
     const email = authUser?.user?.email;
     if (!email) return;
@@ -85,34 +87,46 @@ export async function syncProviderCatalog() {
 
   const services = await fetchProviderServices();
 
-  const { error } = await supabase.from("provider_services").upsert(
-    services.map((s) => ({
-      id: String(s.service),
-      name: s.name,
-      type: s.type,
-      category: s.category,
-      rate: parseFloat(s.rate),
-      min: parseInt(s.min, 10),
-      max: parseInt(s.max, 10),
-      refill: s.refill,
-      cancel: s.cancel,
-      supports_drip_feed: s.dripfeed === true,
-      is_active: true,
-      raw: s,
-      fetched_at: new Date().toISOString(),
-    })),
-    { onConflict: "id" }
-  );
-
-  if (error) {
-    throw new Error(error.message);
+  for (const s of services) {
+    await prisma.provider_services.upsert({
+      where: { id: String(s.service) },
+      create: {
+        id: String(s.service),
+        name: s.name,
+        type: s.type,
+        category: s.category,
+        rate: parseFloat(s.rate),
+        min: parseInt(s.min, 10),
+        max: parseInt(s.max, 10),
+        refill: s.refill,
+        cancel: s.cancel,
+        supports_drip_feed: s.dripfeed === true,
+        is_active: true,
+        raw: s as any,
+        fetched_at: new Date(),
+      },
+      update: {
+        name: s.name,
+        type: s.type,
+        category: s.category,
+        rate: parseFloat(s.rate),
+        min: parseInt(s.min, 10),
+        max: parseInt(s.max, 10),
+        refill: s.refill,
+        cancel: s.cancel,
+        supports_drip_feed: s.dripfeed === true,
+        is_active: true,
+        raw: s as any,
+        fetched_at: new Date(),
+      },
+    });
   }
 
   const providerIds = new Set(services.map((s) => String(s.service)));
-  await supabase
-    .from("provider_services")
-    .update({ is_active: false, fetched_at: new Date().toISOString() })
-    .not("id", "in", Array.from(providerIds));
+  await prisma.provider_services.updateMany({
+    where: { id: { notIn: Array.from(providerIds) } },
+    data: { is_active: false, fetched_at: new Date() },
+  });
 
   return { count: services.length };
 }
@@ -121,13 +135,11 @@ export async function getProviderServices(): Promise<ProviderService[]> {
   const supabase = createAdminClient();
   if (!supabase) return [];
 
-  const { data } = await supabase
-    .from("provider_services")
-    .select("*")
-    .order("rate", { ascending: true });
+  const services = await prisma.provider_services.findMany({
+    orderBy: { rate: "asc" },
+  });
 
-  if (!data) return [];
-  return data as unknown as ProviderService[];
+  return services as unknown as ProviderService[];
 }
 
 export interface JanjezServiceWithProvider {
@@ -149,38 +161,36 @@ export interface JanjezServiceWithProvider {
 export async function resolveJanjezService(
   skuId?: string | null,
   catalogCategoryId?: string | null,
-  janjezServiceId?: string | null
+  janzezServiceId?: string | null
 ): Promise<JanjezServiceWithProvider | null> {
   const supabase = createAdminClient();
   if (!supabase) return null;
 
-  if (janjezServiceId) {
-    const { data } = await supabase
-      .from("janjez_services")
-      .select("id, name, slug, category, subcategory, description, selling_price_ksh, provider_service_id, min_quantity, max_quantity, supports_drip_feed, supports_refill, supports_cancel")
-      .eq("id", janjezServiceId)
-      .eq("is_active", true)
-      .single();
+  if (janzezServiceId) {
+    const data = await prisma.janjez_services.findFirst({
+      where: { id: janzezServiceId, is_active: true },
+      select: { id: true, name: true, slug: true, category: true, subcategory: true, description: true, selling_price_ksh: true, provider_service_id: true, min_quantity: true, max_quantity: true, supports_drip_feed: true, supports_refill: true, supports_cancel: true },
+    });
     if (!data) return null;
-    return data as unknown as JanjezServiceWithProvider;
+    return data as unknown as JanzezServiceWithProvider;
   }
 
-  let query = supabase
-    .from("janjez_services")
-    .select("id, name, slug, category, subcategory, description, selling_price_ksh, provider_service_id, min_quantity, max_quantity, supports_drip_feed, supports_refill, supports_cancel")
-    .eq("is_active", true);
+  let query: any = prisma.janjez_services.findFirst({
+    where: { is_active: true },
+    select: { id: true, name: true, slug: true, category: true, subcategory: true, description: true, selling_price_ksh: true, provider_service_id: true, min_quantity: true, max_quantity: true, supports_drip_feed: true, supports_refill: true, supports_cancel: true },
+  });
 
   if (skuId) {
-    query = query.eq("slug", skuId);
+    (query as any).where = { ...(query as any).where, slug: skuId };
   } else if (catalogCategoryId) {
-    query = query.eq("category", catalogCategoryId);
+    (query as any).where = { ...(query as any).where, category: catalogCategoryId };
   } else {
     return null;
   }
 
-  const { data } = await query.single();
+  const data = await query;
   if (!data) return null;
-  return data as unknown as JanjezServiceWithProvider;
+  return data as unknown as JanzezServiceWithProvider;
 }
 
 export async function fulfillOrder(orderId: string) {
@@ -189,14 +199,12 @@ export async function fulfillOrder(orderId: string) {
     throw new Error("Server misconfigured");
   }
 
-  const { data: order, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("id", orderId)
-    .single();
+  const order = await prisma.orders.findFirst({
+    where: { id: orderId },
+  });
 
-  if (error || !order) {
-    throw new Error(error?.message || "Order not found");
+  if (!order) {
+    throw new Error("Order not found");
   }
 
   if (order.provider_order_id) {
@@ -205,11 +213,11 @@ export async function fulfillOrder(orderId: string) {
 
   if (process.env.SMM_FULFILLMENT_ENABLED === "false") {
     const message = "Fulfillment is disabled";
-    await logFulfillment(supabase, orderId, "place", "fulfillment_disabled", null, null, message);
-    await supabase
-      .from("orders")
-      .update({ fulfillment_status: "fulfillment_disabled", fulfillment_error: message })
-      .eq("id", orderId);
+    await logFulfillment(orderId, "place", "fulfillment_disabled", null, null, message);
+    await prisma.orders.update({
+      where: { id: orderId },
+      data: { fulfillment_status: "fulfillment_disabled", fulfillment_error: message },
+    });
     throw new Error(message);
   }
 
@@ -217,11 +225,11 @@ export async function fulfillOrder(orderId: string) {
   const retryCount = order.retry_count || 0;
   if (retryCount >= MAX_RETRIES) {
     const message = "Max retries exceeded";
-    await logFulfillment(supabase, orderId, "place", "failed", null, null, message);
-    await supabase
-      .from("orders")
-      .update({ fulfillment_status: "failed", fulfillment_error: message })
-      .eq("id", orderId);
+    await logFulfillment(order.id, "place", "failed", null, null, message);
+    await prisma.orders.update({
+      where: { id: order.id },
+      data: { fulfillment_status: "failed", fulfillment_error: message },
+    });
     throw new Error(message);
   }
 
@@ -230,18 +238,16 @@ export async function fulfillOrder(orderId: string) {
   const sku = order.sku_id || order.service_name || "";
 
   let providerService: ProviderService | null = null;
-  let resolvedService: JanjezServiceWithProvider | null = null;
+  let resolvedService: JanzezServiceWithProvider | null = null;
   let quantity = order.quantity || 1;
   let providerRate = 0;
 
-  const janjezService = await resolveJanjezService(order.sku_id, order.catalog_category_id, order.janjez_service_id);
-  if (janjezService && janjezService.provider_service_id) {
-    resolvedService = janjezService;
-    const { data: providerData } = await supabase
-      .from("provider_services")
-      .select("*")
-      .eq("id", janjezService.provider_service_id)
-      .single();
+  const janzezService = await resolveJanjezService(order.sku_id, order.catalog_category_id, order.janjez_service_id);
+  if (janzezService && janzezService.provider_service_id) {
+    resolvedService = janzezService;
+    const providerData = await prisma.provider_services.findFirst({
+      where: { id: janzezService.provider_service_id },
+    });
 
     if (providerData) {
       providerService = {
@@ -265,11 +271,11 @@ export async function fulfillOrder(orderId: string) {
   }
 
   if (!providerService) {
-    await logFulfillment(supabase, order.id, "place", "failed", null, null, "No provider mapping found for this service. Assign a provider_service_id to the Janjez service.");
-    await supabase
-      .from("orders")
-      .update({ fulfillment_status: "failed", fulfillment_error: "No provider mapping found for this service. Contact support." })
-      .eq("id", order.id);
+    await logFulfillment(order.id, "place", "failed", null, null, "No provider mapping found for this service. Assign a provider_service_id to the Janjez service.");
+    await prisma.orders.update({
+      where: { id: order.id },
+      data: { fulfillment_status: "failed", fulfillment_error: "No provider mapping found for this service. Contact support." },
+    });
     throw new Error("No provider mapping found for this service");
   }
 
@@ -283,20 +289,20 @@ export async function fulfillOrder(orderId: string) {
     const providerBalance = parseFloat((balance as { balance?: string } | undefined)?.balance || "0");
     if (providerBalance < expectedCharge) {
       const message = `Insufficient provider balance: ${providerBalance} USD (need ${expectedCharge} USD)`;
-      await logFulfillment(supabase, order.id, "place", "failed", null, null, message);
-      await supabase
-        .from("orders")
-        .update({ fulfillment_status: "failed", fulfillment_error: message })
-        .eq("id", order.id);
+      await logFulfillment(order.id, "place", "failed", null, null, message);
+      await prisma.orders.update({
+        where: { id: order.id },
+        data: { fulfillment_status: "failed", fulfillment_error: message },
+      });
       throw new Error(message);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Provider balance check failed";
-    await logFulfillment(supabase, order.id, "place", "error", null, null, message);
-    await supabase
-      .from("orders")
-      .update({ fulfillment_status: "failed", fulfillment_error: message })
-      .eq("id", order.id);
+    await logFulfillment(order.id, "place", "error", null, null, message);
+    await prisma.orders.update({
+      where: { id: order.id },
+      data: { fulfillment_status: "failed", fulfillment_error: message },
+    });
     throw new Error(message);
   }
 
@@ -311,36 +317,35 @@ export async function fulfillOrder(orderId: string) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Provider request failed";
-    await handleFulfillmentFailure(supabase, order, message, retryCount);
+    await handleFulfillmentFailure(order, message, retryCount);
     throw new Error(message);
   }
 
   if (response.order) {
-    await supabase
-      .from("orders")
-      .update({
+    await prisma.orders.update({
+      where: { id: order.id },
+      data: {
         provider_service_id: String(providerService.service),
         provider_order_id: String(response.order),
         provider_status: "pending",
         provider_charge: expectedCharge,
         provider_currency: "USD",
         fulfillment_status: "processing",
-        fulfilled_at: new Date().toISOString(),
-      })
-      .eq("id", order.id);
+        fulfilled_at: new Date(),
+      },
+    });
 
-    await logFulfillment(supabase, order.id, "place", "processing", { order: response.order }, { service: providerService.service });
+    await logFulfillment(order.id, "place", "processing", { order: response.order }, { service: providerService.service });
     return { status: "processing", providerOrderId: String(response.order) };
   }
 
   const message = response.error || "Provider returned no order ID";
-  await handleFulfillmentFailure(supabase, order, message, retryCount);
+  await handleFulfillmentFailure(order, message, retryCount);
   throw new Error(message);
 }
 
 async function handleFulfillmentFailure(
-  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
-  order: Record<string, unknown>,
+  order: { id: string; order_id?: string | null; user_id?: string | null },
   errorMessage: string,
   retryCount: number
 ) {
@@ -348,54 +353,46 @@ async function handleFulfillmentFailure(
   const isRetryable = nextRetryCount < MAX_RETRIES;
   const newStatus = isRetryable ? "retry_pending" : "failed";
   const delay = isRetryable ? RETRY_DELAYS[nextRetryCount - 1] || 900 : 0;
-  const nextRetryAt = isRetryable ? new Date(Date.now() + delay * 1000).toISOString() : null;
+  const nextRetryAt = isRetryable ? new Date(Date.now() + delay * 1000) : null;
 
-  await logFulfillment(supabase, order.id as string, "place", newStatus, null, null, errorMessage);
-  await supabase
-    .from("orders")
-    .update({
+  await logFulfillment(order.id as string, "place", newStatus, null, null, errorMessage);
+  await prisma.orders.update({
+    where: { id: order.id },
+    data: {
       fulfillment_status: newStatus,
       fulfillment_error: errorMessage,
       retry_count: nextRetryCount,
       next_retry_at: nextRetryAt,
-    })
-    .eq("id", order.id);
+    },
+  });
 
   // Refund on final failure (not retryable)
   if (!isRetryable) {
-    await refundOrder(supabase, order, errorMessage);
+    await refundOrder(order, errorMessage);
   }
 
   // Send admin notification
-  await notifyAdminsOfFailure(
-    { id: order.id as string, order_id: order.order_id as string | null, user_id: order.user_id as string | null },
-    errorMessage
-  );
+  await notifyAdminsOfFailure(order, errorMessage);
 }
 
 async function refundOrder(
-  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
-  order: Record<string, unknown>,
+  order: { user_id?: string | null; amount_paid?: number | null; id: string },
   errorMessage: string
 ) {
-  const userId = order.user_id as string | null;
-  const amountPaid = order.amount_paid as number | null;
+  const userId = order.user_id;
+  const amountPaid = order.amount_paid;
 
   if (userId && amountPaid && amountPaid > 0) {
     try {
-      await supabase.rpc("credit_wallet", {
-        p_user_id: userId,
-        p_amount: amountPaid,
+      await creditWallet(userId, amountPaid);
+      await prisma.orders.update({
+        where: { id: order.id },
+        data: { payment_status: "refunded" },
       });
-      await supabase
-        .from("orders")
-        .update({ payment_status: "refunded" })
-        .eq("id", order.id);
       console.log(`[fulfillment] Refunded ${amountPaid} to user ${userId} for order ${order.id}`);
     } catch (refundError) {
       console.error(`[fulfillment] Failed to refund user ${userId} for order ${order.id}:`, refundError);
-      // Log for manual intervention
-      await logFulfillment(supabase, order.id as string, "refund", "error", null, { errorMessage }, `Refund failed: ${refundError}`);
+      await logFulfillment(order.id, "refund", "error", null, { errorMessage }, `Refund failed: ${refundError}`);
     }
   }
 }
@@ -425,25 +422,23 @@ export async function cancelOrder(orderId: string) {
     throw new Error("Server misconfigured");
   }
 
-  const { data: order, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("id", orderId)
-    .single();
+  const order = await prisma.orders.findFirst({
+    where: { id: orderId },
+  });
 
-  if (error || !order) {
-    throw new Error(error?.message || "Order not found");
+  if (!order) {
+    throw new Error("Order not found");
   }
 
   if (!order.provider_order_id) {
     return { status: "not_fulfilled", error: "Order has no provider order to cancel" };
   }
 
-  const janjezServiceId = order.janjez_service_id;
-  let resolvedService: JanjezServiceWithProvider | null = null;
+  const janzezServiceId = order.janjez_service_id;
+  let resolvedService: JanzezServiceWithProvider | null = null;
 
-  if (janjezServiceId) {
-    resolvedService = await resolveJanjezService(null, null, janjezServiceId);
+  if (janzezServiceId) {
+    resolvedService = await resolveJanjezService(null, null, janzezServiceId);
   }
 
   if (!resolvedService) {
@@ -456,19 +451,19 @@ export async function cancelOrder(orderId: string) {
 
   try {
     await createProviderCancel([String(order.provider_order_id)]);
-    await supabase
-      .from("orders")
-      .update({
+    await prisma.orders.update({
+      where: { id: order.id },
+      data: {
         fulfillment_status: "cancelled",
         provider_status: "Cancelled",
         status: "cancelled",
-      })
-      .eq("id", order.id);
-    await logFulfillment(supabase, order.id, "cancel", "cancelled", { order_id: order.provider_order_id }, null);
+      },
+    });
+    await logFulfillment(order.id, "cancel", "cancelled", { order_id: order.provider_order_id }, null);
     return { status: "cancelled" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Provider cancellation failed";
-    await logFulfillment(supabase, order.id, "cancel", "error", { order_id: order.provider_order_id }, null, message);
+    await logFulfillment(order.id, "cancel", "error", { order_id: order.provider_order_id }, null, message);
     return { status: "error", error: message };
   }
 }
@@ -479,25 +474,23 @@ export async function refillOrder(orderId: string) {
     throw new Error("Server misconfigured");
   }
 
-  const { data: order, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("id", orderId)
-    .single();
+  const order = await prisma.orders.findFirst({
+    where: { id: orderId },
+  });
 
-  if (error || !order) {
-    throw new Error(error?.message || "Order not found");
+  if (!order) {
+    throw new Error("Order not found");
   }
 
   if (!order.provider_order_id) {
     return { status: "not_fulfilled", error: "Order has no provider order to refill" };
   }
 
-  const janjezServiceId = order.janjez_service_id;
-  let resolvedService: JanjezServiceWithProvider | null = null;
+  const janzezServiceId = order.janjez_service_id;
+  let resolvedService: JanzezServiceWithProvider | null = null;
 
-  if (janjezServiceId) {
-    resolvedService = await resolveJanjezService(null, null, janjezServiceId);
+  if (janzezServiceId) {
+    resolvedService = await resolveJanjezService(null, null, janzezServiceId);
   }
 
   if (!resolvedService) {
@@ -510,15 +503,15 @@ export async function refillOrder(orderId: string) {
 
   try {
     await createProviderRefill([String(order.provider_order_id)]);
-    await supabase
-      .from("orders")
-      .update({ provider_status: "Pending" })
-      .eq("id", order.id);
-    await logFulfillment(supabase, order.id, "refill", "processing", { order_id: order.provider_order_id }, null);
+    await prisma.orders.update({
+      where: { id: order.id },
+      data: { provider_status: "Pending" },
+    });
+    await logFulfillment(order.id, "refill", "processing", { order_id: order.provider_order_id }, null);
     return { status: "refill_submitted" };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Provider refill failed";
-    await logFulfillment(supabase, order.id, "refill", "error", { order_id: order.provider_order_id }, null, message);
+    await logFulfillment(order.id, "refill", "error", { order_id: order.provider_order_id }, null, message);
     return { status: "error", error: message };
   }
 }
@@ -539,25 +532,21 @@ export async function syncOrderStatuses(orderIds?: string[]) {
   const supabase = createAdminClient();
   if (!supabase) return;
 
-  let query = supabase
-    .from("orders")
-    .select("id, order_id, user_id, provider_order_id, fulfillment_status, provider_status, service_name, subcategory, link_submitted, link, fulfillment_error")
-    .not("provider_order_id", "is", null);
+  const orders = await prisma.orders.findMany({
+    where: {
+      provider_order_id: { not: null },
+      ...(orderIds && orderIds.length > 0 ? { id: { in: orderIds } } : { fulfillment_status: { in: ["pending", "processing"] } }),
+    },
+    select: { id: true, order_id: true, user_id: true, provider_order_id: true, fulfillment_status: true, provider_status: true, service_name: true, subcategory: true, link_submitted: true, link: true, fulfillment_error: true },
+  });
 
-  if (orderIds && orderIds.length > 0) {
-    query = query.in("id", orderIds);
-  } else {
-    query = query.in("fulfillment_status", ["pending", "processing"]);
-  }
-
-  const { data } = await query;
-  if (!data || data.length === 0) return;
+  if (!orders || orders.length === 0) return;
 
   const statuses = await getProviderMultipleStatus(
-    data.map((o) => o.provider_order_id as string)
+    orders.map((o) => o.provider_order_id as string)
   );
 
-  for (const order of data) {
+  for (const order of orders) {
     const status = statuses[order.provider_order_id as string];
     if (!status) continue;
 
@@ -579,12 +568,14 @@ export async function syncOrderStatuses(orderIds?: string[]) {
       if (unknown) {
         console.warn(`Unknown provider status "${status.status}" for order ${order.id} (${order.order_id})`);
       }
-      await supabase.from("notifications").insert({
-        user_id: order.user_id,
-        type: "order_update",
-        title: `Order ${order.order_id || order.id.slice(0, 8)} status updated`,
-        message: `Status changed from ${prevStatus || "pending"} to ${newStatus}. Provider: ${status.status || "unknown"}.`,
-        link: "/orders/all",
+      await prisma.notifications.create({
+        data: {
+          user_id: order.user_id as string,
+          type: "order_update",
+          title: `Order ${order.order_id || order.id.slice(0, 8)} status updated`,
+          message: `Status changed from ${prevStatus || "pending"} to ${newStatus}. Provider: ${status.status || "unknown"}.`,
+          link: "/orders/all",
+        },
       });
 
       // Admin notification on failure/cancellation
@@ -601,17 +592,20 @@ export async function syncOrderStatuses(orderIds?: string[]) {
       }
     }
 
-    await supabase.from("orders").update(updates).eq("id", order.id);
+    await prisma.orders.update({
+      where: { id: order.id },
+      data: updates,
+    });
     fireAndForgetEmail(
-      maybeSendOrderStatusEmail(supabase, order, prevStatus || null, newStatus).then(
+      maybeSendOrderStatusEmail(order, prevStatus || null, newStatus).then(
         () => ({ ok: true })
       ),
       "order-status-sync"
     );
     if (unknown) {
-      await logFulfillment(supabase, order.id, "status", "unknown_status", null, status, `Unknown provider status: ${status.status}`);
+      await logFulfillment(order.id, "status", "unknown_status", null, status, `Unknown provider status: ${status.status}`);
     } else {
-      await logFulfillment(supabase, order.id, "status", "synced", null, status);
+      await logFulfillment(order.id, "status", "synced", null, status);
     }
   }
 }
@@ -620,11 +614,10 @@ export async function requestRefill(orderId: string) {
   const supabase = createAdminClient();
   if (!supabase) throw new Error("Server misconfigured");
 
-  const { data: order } = await supabase
-    .from("orders")
-    .select("provider_order_id, provider_service_id")
-    .eq("id", orderId)
-    .single();
+  const order = await prisma.orders.findFirst({
+    where: { id: orderId },
+    select: { provider_order_id: true, provider_service_id: true },
+  });
 
   if (!order?.provider_order_id) {
     throw new Error("Order not fulfilled yet");
@@ -634,15 +627,15 @@ export async function requestRefill(orderId: string) {
   const refillResult = result[0];
 
   if (refillResult && typeof refillResult.refill === "number") {
-    await supabase
-      .from("orders")
-      .update({
+    await prisma.orders.update({
+      where: { id: orderId },
+      data: {
         fulfillment_status: "processing",
         provider_status: "refilled",
-        fulfilled_at: new Date().toISOString(),
-      })
-      .eq("id", orderId);
-    await logFulfillment(supabase, orderId, "refill", "requested", { order: order.provider_order_id }, refillResult);
+        fulfilled_at: new Date(),
+      },
+    });
+    await logFulfillment(orderId, "refill", "requested", { order: order.provider_order_id }, refillResult);
     return { refillId: refillResult.refill };
   }
 
@@ -651,7 +644,7 @@ export async function requestRefill(orderId: string) {
       ? refillResult.refill.error
       : "Refill failed";
 
-  await logFulfillment(supabase, orderId, "refill", "failed", { order: order.provider_order_id }, refillResult, message);
+  await logFulfillment(orderId, "refill", "failed", { order: order.provider_order_id }, refillResult, message);
   throw new Error(message);
 }
 
@@ -659,11 +652,10 @@ export async function requestCancel(orderId: string) {
   const supabase = createAdminClient();
   if (!supabase) throw new Error("Server misconfigured");
 
-  const { data: order } = await supabase
-    .from("orders")
-    .select("provider_order_id")
-    .eq("id", orderId)
-    .single();
+  const order = await prisma.orders.findFirst({
+    where: { id: orderId },
+    select: { provider_order_id: true },
+  });
 
   if (!order?.provider_order_id) {
     throw new Error("Order not fulfilled yet");
@@ -673,14 +665,14 @@ export async function requestCancel(orderId: string) {
   const cancelResult = result[0];
 
   if (cancelResult && typeof cancelResult.cancel === "number") {
-    await supabase
-      .from("orders")
-      .update({
+    await prisma.orders.update({
+      where: { id: orderId },
+      data: {
         fulfillment_status: "cancelled",
         provider_status: "cancelled",
-      })
-      .eq("id", orderId);
-    await logFulfillment(supabase, orderId, "cancel", "cancelled", { order: order.provider_order_id }, cancelResult);
+      },
+    });
+    await logFulfillment(orderId, "cancel", "cancelled", { order: order.provider_order_id }, cancelResult);
     return { cancelId: cancelResult.cancel };
   }
 
@@ -689,12 +681,11 @@ export async function requestCancel(orderId: string) {
       ? cancelResult.cancel.error
       : "Cancel failed";
 
-  await logFulfillment(supabase, orderId, "cancel", "failed", { order: order.provider_order_id }, cancelResult, message);
+  await logFulfillment(orderId, "cancel", "failed", { order: order.provider_order_id }, cancelResult, message);
   throw new Error(message);
 }
 
 async function logFulfillment(
-  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
   orderId: string,
   action: string,
   status: string,
@@ -702,12 +693,14 @@ async function logFulfillment(
   responsePayload: unknown,
   error?: string
 ) {
-  await supabase.from("fulfillment_logs").insert({
-    order_id: orderId,
-    action,
-    status,
-    request_payload: requestPayload,
-    response_payload: responsePayload,
-    error: error || null,
+  await prisma.fulfillment_logs.create({
+    data: {
+      order_id: orderId,
+      action,
+      status,
+      request_payload: requestPayload,
+      response_payload: responsePayload as any,
+      error: error || null,
+    },
   });
 }

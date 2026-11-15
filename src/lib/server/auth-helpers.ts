@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/supabase/admin";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -30,11 +31,10 @@ export async function getUserFromRequest(request: NextRequest): Promise<AuthedUs
   const { data: userData, error } = await supabase.auth.getUser(token);
   if (error || !userData.user) return null;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, email, role")
-    .eq("id", userData.user.id)
-    .single();
+  const profile = await prisma.profiles.findFirst({
+    where: { id: userData.user.id },
+    select: { id: true, email: true, role: true },
+  });
 
   if (!profile) return null;
 

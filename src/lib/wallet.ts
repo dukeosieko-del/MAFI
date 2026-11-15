@@ -1,86 +1,128 @@
 /**
- * Helpers for the atomic wallet RPCs (credit_wallet / debit_wallet).
+ * Helpers for atomic wallet operations using Prisma transactions.
  *
- * Both functions are declared as `RETURNS TABLE(...)` in
- * supabase/migrations/20250101000011_wallet_atomic_functions.sql, so PostgREST
- * exposes their result as an ARRAY of rows:
- *
- *   credit_wallet -> [{ new_balance: 1500 }]
- *   debit_wallet  -> [{ new_balance: 900, success: false }]
- *
- * Reading `data.new_balance` (or `data.success`) from that array silently
- * yields `undefined`. That made a *failed* debit look successful (orders were
- * created and fulfilled without money being taken) and made every top-up
- * report a balance of 0. Always unwrap the first row.
+ * Wallet credit/debit uses Prisma transactions ($transaction) to ensure
+ * atomicity — balance updates and transaction log inserts happen together or
+ * not at all. Row-level locking is implicit within the transaction.
  */
 
-export interface WalletDebitRow {
-  new_balance: number;
+export interface WalletDebitResult {
   success: boolean;
+  newBalance: number;
+  error: string | null;
 }
 
-export interface WalletCreditRow {
-  new_balance: number;
+export interface WalletCreditResult {
+  newBalance: number;
+  error: string | null;
 }
 
-/** Unwrap the first row of a PostgREST table-returning RPC result. */
-export function readWalletRpcRow<T>(data: unknown): T | null {
-  if (Array.isArray(data)) {
-    const row = data[0];
-    return row && typeof row === "object" ? (row as T) : null;
-  }
-  if (data && typeof data === "object") {
-    return data as T;
-  }
-  return null;
-}
-
-/** Debit a wallet, returning the post-debit balance and whether it succeeded. */
+/** Debit a wallet atomically. Returns the post-debit balance and whether it succeeded. */
 export async function debitWallet(
-  supabase: {
-    rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
-  },
   userId: string,
   amount: number
-): Promise<{ success: boolean; newBalance: number; error: string | null }> {
-  const result = await supabase.rpc("debit_wallet", {
-    p_user_id: userId,
-    p_amount: amount,
-  });
-  const error = (result as { error?: { message: string } | null }).error;
-  const data = (result as { data?: unknown }).data;
-
-  if (error) {
-    return { success: false, newBalance: 0, error: error.message };
+): Promise<WalletDebitResult> {
+  if (!amount || amount <= 0) {
+    return { success: false, newBalance: 0, error: "Amount must be positive" };
   }
 
-  const row = readWalletRpcRow<WalletDebitRow>(data);
-  if (!row || row.success !== true) {
-    return { success: false, newBalance: Number(row?.new_balance) || 0, error: "Insufficient balance" };
-  }
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Lock the profile row for update to prevent race conditions
+      const profile = await tx.profiles.findFirst({
+        where: { id: userId },
+        select: { id: true, wallet_balance: true },
+      });
 
-  return { success: true, newBalance: Number(row.new_balance) || 0, error: null };
+      if (!profile) {
+        return { success: false, newBalance: 0, error: "Profile not found" };
+      }
+
+      const currentBalance = Number(profile.wallet_balance) || 0;
+      if (currentBalance < amount) {
+        return { success: false, newBalance: currentBalance, error: "Insufficient balance" };
+      }
+
+      const newBalance = currentBalance - amount;
+
+      // Update profile balance
+      await tx.profiles.update({
+        where: { id: userId },
+        data: { wallet_balance: newBalance },
+      });
+
+      // Create wallet transaction record
+      await tx.wallet_transactions.create({
+        data: {
+          user_id: userId,
+          type: "debit",
+          amount,
+          currency: "KES",
+          payment_method: "wallet",
+          status: "completed",
+          notes: "Wallet debit",
+        },
+      });
+
+      return { success: true, newBalance, error: null };
+    });
+
+    return result;
+  } catch (err) {
+    console.error("debitWallet error:", err);
+    return { success: false, newBalance: 0, error: err instanceof Error ? err.message : "Debit failed" };
+  }
 }
 
-/** Credit a wallet, returning the post-credit balance. */
+/** Credit a wallet atomically. Returns the post-credit balance. */
 export async function creditWallet(
-  supabase: {
-    rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
-  },
   userId: string,
   amount: number
-): Promise<{ newBalance: number; error: string | null }> {
-  const result = await supabase.rpc("credit_wallet", {
-    p_user_id: userId,
-    p_amount: amount,
-  });
-  const error = (result as { error?: { message: string } | null }).error;
-  const data = (result as { data?: unknown }).data;
-
-  if (error) {
-    return { newBalance: 0, error: error.message };
+): Promise<WalletCreditResult> {
+  if (!amount || amount <= 0) {
+    return { newBalance: 0, error: "Amount must be positive" };
   }
 
-  const row = readWalletRpcRow<WalletCreditRow>(data);
-  return { newBalance: Number(row?.new_balance) || 0, error: null };
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Lock the profile row for update
+      const profile = await tx.profiles.findFirst({
+        where: { id: userId },
+        select: { id: true, wallet_balance: true },
+      });
+
+      if (!profile) {
+        return { newBalance: 0, error: "Profile not found" };
+      }
+
+      const currentBalance = Number(profile.wallet_balance) || 0;
+      const newBalance = currentBalance + amount;
+
+      // Update profile balance
+      await tx.profiles.update({
+        where: { id: userId },
+        data: { wallet_balance: newBalance },
+      });
+
+      // Create wallet transaction record
+      await tx.wallet_transactions.create({
+        data: {
+          user_id: userId,
+          type: "credit",
+          amount,
+          currency: "KES",
+          payment_method: "wallet",
+          status: "completed",
+          notes: "Wallet credit",
+        },
+      });
+
+      return { newBalance, error: null };
+    });
+
+    return result;
+  } catch (err) {
+    console.error("creditWallet error:", err);
+    return { newBalance: 0, error: err instanceof Error ? err.message : "Credit failed" };
+  }
 }

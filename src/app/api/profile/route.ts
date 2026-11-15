@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { getUserFromRequest } from "@/lib/server/auth-helpers";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { validateString } from "@/lib/server/validation";
@@ -19,22 +19,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = createAdminClient();
-    if (!supabase) {
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    const profile = await prisma.profiles.findFirst({
+      where: { id: user.id },
+    });
+
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ profile: data });
+    return NextResponse.json({ profile });
   } catch {
     return NextResponse.json({ error: "Failed to load profile" }, { status: 500 });
   }
@@ -48,11 +41,6 @@ export async function PATCH(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const supabase = createAdminClient();
-    if (!supabase) {
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
     }
 
     const body = await request.json();
@@ -102,18 +90,12 @@ export async function PATCH(request: NextRequest) {
     if (theme !== undefined) updates.theme = theme;
     if (language !== undefined) updates.language = language;
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", user.id)
-      .select("*")
-      .single();
+    const updated = await prisma.profiles.update({
+      where: { id: user.id },
+      data: updates,
+    });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ profile: data });
+    return NextResponse.json({ profile: updated });
   } catch {
     return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
   }

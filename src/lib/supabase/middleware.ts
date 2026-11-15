@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { prisma } from "@/lib/supabase/admin";
 
 export async function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -28,3 +29,5 @@ export async function createClient() {
     return null;
   }
 }
+
+export { prisma };

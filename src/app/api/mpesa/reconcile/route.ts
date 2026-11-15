@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { getUserFromRequest, requireAdmin } from "@/lib/server/auth-helpers";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { completeStkPayment, queryStkStatus, StkCallbackMetadata } from "@/lib/mpesa/client";
@@ -62,29 +62,22 @@ export async function POST(request: NextRequest) {
 
   const cutoff = new Date(Date.now() - MIN_AGE_MS).toISOString();
 
-  let query = supabase
-    .from("wallet_transactions")
-    .select("id, user_id, amount, reference, related_order_id, created_at")
-    .eq("status", "pending")
-    .eq("payment_method", "mpesa")
-    .lt("created_at", cutoff)
-    .order("created_at", { ascending: true })
-    .limit(50);
-
-  if (!reconcileAll && scopeUserId) {
-    query = query.eq("user_id", scopeUserId);
-  }
-
-  const { data: pending, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const pending = await prisma.wallet_transactions.findMany({
+    where: {
+      status: "pending",
+      payment_method: "mpesa",
+      created_at: { lt: new Date(cutoff) },
+      ...(!reconcileAll && scopeUserId ? { user_id: scopeUserId } : {}),
+    },
+    select: { id: true, user_id: true, amount: true, reference: true, related_order_id: true, created_at: true },
+    orderBy: { created_at: "asc" },
+    take: 50,
+  });
 
   const reconciled: Array<{ reference: string; amount: number; newBalance: number }> = [];
   const unresolved: Array<{ reference: string; reason: string }> = [];
 
-  for (const tx of pending || []) {
+  for (const tx of pending) {
     try {
       const status = await queryStkStatus(tx.reference);
       if (status.ResultCode !== "0") {
@@ -107,7 +100,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    checked: pending?.length || 0,
+    checked: pending.length,
     reconciled,
     unresolved,
   });

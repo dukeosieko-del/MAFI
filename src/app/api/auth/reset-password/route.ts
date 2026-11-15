@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { SITE_URL } from "@/lib/email/config";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { sanitizeString } from "@/lib/server/validation";
@@ -40,14 +40,16 @@ export async function POST(request: NextRequest) {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-    const { error: insertError } = await supabase.from("password_reset_tokens").insert({
-      user_id: user.id,
-      token,
-      expires_at: expiresAt,
-    });
-
-    if (insertError) {
-      console.error("Failed to create password reset token:", insertError);
+    try {
+      await prisma.password_reset_tokens.create({
+        data: {
+          user_id: user.id,
+          token,
+          expires_at: expiresAt,
+        },
+      });
+    } catch {
+      console.error("Failed to create password reset token");
       return NextResponse.json({ error: "Failed to create reset token" }, { status: 500 });
     }
 

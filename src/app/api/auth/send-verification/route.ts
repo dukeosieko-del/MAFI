@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { SITE_URL } from "@/lib/email/config";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { sanitizeString } from "@/lib/server/validation";
@@ -14,34 +14,28 @@ const SIGNUP_RATE_LIMIT = 10;
 export const runtime = "nodejs";
 
 async function sendVerificationEmail(
-  supabase: ReturnType<typeof createAdminClient>,
   userId: string,
   email: string,
   fullName: string | null
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!supabase) {
-    return { ok: false, error: "Server misconfigured" };
-  }
-
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-  const { error: deleteError } = await supabase
-    .from("email_verifications")
-    .delete()
-    .eq("user_id", userId);
-
-  if (deleteError) {
-    console.error("Failed to invalidate previous verification tokens:", deleteError);
+  try {
+    await prisma.email_verifications.deleteMany({ where: { user_id: userId } });
+  } catch (err) {
+    console.error("Failed to invalidate previous verification tokens:", err);
   }
 
-  const { error: insertError } = await supabase.from("email_verifications").insert({
-    user_id: userId,
-    token,
-    expires_at: expiresAt,
-  });
-
-  if (insertError) {
+  try {
+    await prisma.email_verifications.create({
+      data: {
+        user_id: userId,
+        token,
+        expires_at: expiresAt,
+      },
+    });
+  } catch {
     return { ok: false, error: "Failed to create verification record" };
   }
 
@@ -105,7 +99,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Email is already verified. You can sign in." }, { status: 400 });
       }
 
-      const emailResult = await sendVerificationEmail(supabase, user.id, sanitizedEmail, user.user_metadata?.full_name || null);
+      const emailResult = await sendVerificationEmail(user.id, sanitizedEmail, user.user_metadata?.full_name || null);
       if (!emailResult.ok) {
         return NextResponse.json({ error: "Failed to send verification email. Please try again later." }, { status: 500 });
       }
@@ -129,7 +123,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Email is already registered and verified." }, { status: 409 });
       }
 
-      const emailResult = await sendVerificationEmail(supabase, user.id, sanitizedEmail, user.user_metadata?.full_name || null);
+      const emailResult = await sendVerificationEmail(user.id, sanitizedEmail, user.user_metadata?.full_name || null);
       if (!emailResult.ok) {
         return NextResponse.json({ error: "Failed to send verification email. Please try again later." }, { status: 500 });
       }
@@ -153,17 +147,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (sanitizedUsername) {
-      const { error: profileUpdateError } = await supabase
-        .from("profiles")
-        .update({ username: sanitizedUsername })
-        .eq("id", newUser.user.id);
+      const profileUpdateError = await prisma.profiles.update({
+        where: { id: newUser.user.id },
+        data: { username: sanitizedUsername },
+      }).then(() => null).catch((err: any) => err);
       if (profileUpdateError) {
         await supabase.auth.admin.deleteUser(newUser.user.id);
         return NextResponse.json({ error: "Failed to set username. Please try again." }, { status: 500 });
       }
     }
 
-    const emailResult = await sendVerificationEmail(supabase, newUser.user.id, sanitizedEmail, sanitizedFullName || null);
+    const emailResult = await sendVerificationEmail(newUser.user.id, sanitizedEmail, sanitizedFullName || null);
     if (!emailResult.ok) {
       await supabase.auth.admin.deleteUser(newUser.user.id);
       return NextResponse.json({ error: "Failed to send verification email. Please try again later." }, { status: 500 });

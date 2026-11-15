@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { getUserFromRequest } from "@/lib/server/auth-helpers";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import {
@@ -87,14 +87,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createAdminClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Server misconfigured" },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
     const audience = body.audience as NotificationAudience;
     const category = body.category as NotificationCategory;
@@ -144,12 +136,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: profile, error: profileErr } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", targetUserId)
-      .single();
-    if (profileErr || !profile) {
+    const profile = await prisma.profiles.findFirst({
+      where: { id: targetUserId },
+      select: { id: true },
+    });
+    if (!profile) {
       return NextResponse.json(
         { error: "Target user not found" },
         { status: 404 }

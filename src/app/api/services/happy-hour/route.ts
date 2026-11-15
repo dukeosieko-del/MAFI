@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -13,19 +13,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const count = Math.max(1, Math.min(10, parseInt(searchParams.get("count") || "1", 10)));
 
-    const { data, error } = await supabase
-      .from("janjez_services")
-      .select("id, name, slug, category, subcategory, is_active, supports_drip_feed")
-      .eq("is_active", true)
-      .eq("show_catalogue", true)
-      .order("id", { ascending: false });
+    const services = await prisma.janjez_services.findMany({
+      select: { id: true, name: true, slug: true, category: true, subcategory: true, is_active: true, supports_drip_feed: true },
+      where: { is_active: true, show_catalogue: true },
+      orderBy: { id: "desc" },
+    });
 
-    if (error) {
-      console.error("Happy Hour service query error:", error);
-      return NextResponse.json({ error: "Failed to query services" }, { status: 500 });
-    }
-
-    const services = data || [];
     const shuffled = services.sort(() => 0.5 - Math.random());
     const selected = shuffled.slice(0, count);
 

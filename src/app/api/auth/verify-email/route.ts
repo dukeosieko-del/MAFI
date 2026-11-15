@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { SITE_URL } from "@/lib/email/config";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { sendTransactional } from "@/lib/transactional";
@@ -25,33 +25,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/auth/sign-in?error=server_misconfigured", REDIRECT_BASE));
     }
 
-    const { data: verification, error: fetchError } = await supabase
-      .from("email_verifications")
-      .select("*")
-      .eq("token", token)
-      .single();
+    const verification = await prisma.email_verifications.findFirst({
+      where: { token },
+    });
 
-    if (fetchError || !verification) {
+    if (!verification) {
       return NextResponse.redirect(new URL("/auth/sign-in?error=invalid_token", REDIRECT_BASE));
     }
 
     if (new Date(verification.expires_at) < new Date()) {
-      await supabase.from("email_verifications").delete().eq("id", verification.id);
+      await prisma.email_verifications.delete({ where: { id: verification.id } });
       return NextResponse.redirect(new URL("/auth/sign-in?error=token_expired", REDIRECT_BASE));
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, email, email_verified")
-      .eq("id", verification.user_id)
-      .single();
+    const profile = await prisma.profiles.findFirst({
+      where: { id: verification.user_id },
+      select: { id: true, email: true, email_verified: true },
+    });
 
-    if (profileError || !profile) {
+    if (!profile) {
       return NextResponse.redirect(new URL("/auth/sign-in?error=profile_not_found", REDIRECT_BASE));
     }
 
     if (profile.email_verified) {
-      await supabase.from("email_verifications").delete().eq("id", verification.id);
+      await prisma.email_verifications.delete({ where: { id: verification.id } });
       return NextResponse.redirect(new URL(`/auth/sign-in?verified=1&email=${encodeURIComponent(profile.email)}`, REDIRECT_BASE));
     }
 
@@ -80,7 +77,7 @@ export async function GET(request: NextRequest) {
       console.error("Welcome email send failed");
     }
 
-    await supabase.from("email_verifications").delete().eq("id", verification.id);
+    await prisma.email_verifications.delete({ where: { id: verification.id } });
 
     return NextResponse.redirect(new URL(`/auth/sign-in?verified=1&email=${encodeURIComponent(profile.email)}`, REDIRECT_BASE));
   } catch {

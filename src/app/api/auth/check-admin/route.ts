@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -19,12 +19,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const admin = createAdminClient();
-    let profile: Record<string, unknown> | null = null;
-    if (admin) {
-      const { data } = await admin.from("profiles").select("*").eq("id", user.id).single();
-      profile = data;
-    }
+    const profile = await prisma.profiles.findFirst({
+      where: { id: user.id },
+    });
 
     return NextResponse.json({
       user: {
@@ -54,7 +51,7 @@ export async function GET(request: NextRequest) {
       fix: {
         sql: `UPDATE public.profiles SET role = 'admin' WHERE id = '${user.id}';`,
         description:
-          "Run this in Supabase SQL Editor to grant admin access. After running, sign out and sign back in (or hard-refresh) to see the change.",
+          "Run this in database to grant admin access. After running, sign out and sign back in (or hard-refresh) to see the change.",
       },
     });
   } catch (err) {

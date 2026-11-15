@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { initiateStkPush, getCallbackUrl } from "@/lib/mpesa/client";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { getUserFromRequest } from "@/lib/server/auth-helpers";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { calculateMpesaAmount } from "@/lib/pricing";
@@ -37,12 +37,10 @@ export async function POST(request: NextRequest) {
   let relatedOrderId: string | null = null;
 
   if (orderId) {
-    const { data: order } = await supabase
-      .from("orders")
-      .select("id, order_id, amount, amount_paid, user_id, payment_status")
-      .eq("id", orderId)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const order = await prisma.orders.findFirst({
+      where: { id: orderId, user_id: user.id },
+      select: { id: true, amount: true, amount_paid: true, payment_status: true },
+    });
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -74,29 +72,26 @@ export async function POST(request: NextRequest) {
         : `Wallet top-up for ${user.email}`,
     });
 
-    const { error: txError } = await supabase.from("wallet_transactions").insert({
-      user_id: user.id,
-      type: relatedOrderId ? "order_payment" : "topup",
-      amount: chargeAmount,
-      currency: "KES",
-      payment_method: "mpesa",
-      mpesa_phone: phoneNumber,
-      reference: response.CheckoutRequestID,
-      related_order_id: relatedOrderId,
-      status: "pending",
-      notes: relatedOrderId ? "M-Pesa STK push initiated for order" : "M-Pesa STK push initiated",
+    await prisma.wallet_transactions.create({
+      data: {
+        user_id: user.id,
+        type: relatedOrderId ? "order_payment" : "topup",
+        amount: chargeAmount,
+        currency: "KES",
+        payment_method: "mpesa",
+        mpesa_phone: phoneNumber,
+        reference: response.CheckoutRequestID,
+        related_order_id: relatedOrderId,
+        status: "pending",
+        notes: relatedOrderId ? "M-Pesa STK push initiated for order" : "M-Pesa STK push initiated",
+      },
     });
 
-    if (txError) {
-      console.error("wallet_transactions insert failed:", txError.message);
-    }
-
     if (relatedOrderId) {
-      await supabase
-        .from("orders")
-        .update({ payment_status: "pending_mpesa" })
-        .eq("id", relatedOrderId)
-        .neq("payment_status", "paid");
+      await prisma.orders.update({
+        where: { id: relatedOrderId },
+        data: { payment_status: "pending_mpesa" },
+      });
     }
 
     return NextResponse.json({

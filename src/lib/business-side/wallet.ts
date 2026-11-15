@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { getCallbackUrl, initiateStkPush } from "@/lib/mpesa/client";
 import { getBusinessSideAccountId } from "./config";
 import { withIdempotency } from "./idempotency";
@@ -17,35 +17,30 @@ export async function topUpBusinessWallet(input: {
     return { ok: false as const, code: "SERVER_MISCONFIGURED", message: "Business Side account is not configured." };
   }
 
-  const supabase = createAdminClient();
-  if (!supabase) {
-    return { ok: false as const, code: "SERVER_MISCONFIGURED", message: "Server misconfigured." };
-  }
+  const account = await prisma.profiles.findFirst({
+    where: { id: accountId },
+    select: { id: true },
+  });
 
-  const { data: account, error: accountError } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("id", accountId)
-    .single();
-
-  if (accountError || !account) {
+  if (!account) {
     return { ok: false as const, code: "BUSINESS_ACCOUNT_NOT_FOUND", message: "Business Side account was not found." };
   }
 
-  const existing = await supabase
-    .from("wallet_transactions")
-    .select("reference, status, amount")
-    .eq("user_id", accountId)
-    .eq("type", "topup")
-    .eq("notes", `business-side:${input.idempotencyKey}`)
-    .maybeSingle();
+  const existing = await prisma.wallet_transactions.findFirst({
+    where: {
+      user_id: accountId,
+      type: "topup",
+      notes: `business-side:${input.idempotencyKey}`,
+    },
+    select: { reference: true, status: true, amount: true },
+  });
 
-  if (existing?.data?.reference) {
+  if (existing?.reference) {
     return {
       ok: true as const,
-      checkoutRequestId: existing.data.reference,
-      status: existing.data.status,
-      amount: Number(existing.data.amount),
+      checkoutRequestId: existing.reference,
+      status: existing.status,
+      amount: Number(existing.amount),
       replayed: true,
     };
   }
@@ -64,21 +59,19 @@ export async function topUpBusinessWallet(input: {
     return { ok: false as const, code: "MPESA_ERROR", message: stk.error };
   }
 
-  const { error: insertError } = await supabase.from("wallet_transactions").insert({
-    user_id: accountId,
-    type: "topup",
-    amount: input.amount,
-    currency: "KES",
-    payment_method: "mpesa",
-    mpesa_phone: normalizePhone(input.phoneNumber),
-    reference: stk.CheckoutRequestID,
-    status: "pending",
-    notes: `business-side:${input.idempotencyKey}`,
+  await prisma.wallet_transactions.create({
+    data: {
+      user_id: accountId,
+      type: "topup",
+      amount: input.amount,
+      currency: "KES",
+      payment_method: "mpesa",
+      mpesa_phone: normalizePhone(input.phoneNumber),
+      reference: stk.CheckoutRequestID,
+      status: "pending",
+      notes: `business-side:${input.idempotencyKey}`,
+    },
   });
-
-  if (insertError) {
-    return { ok: false as const, code: "SERVER_ERROR", message: insertError.message };
-  }
 
   return {
     ok: true as const,

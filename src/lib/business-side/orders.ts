@@ -1,14 +1,15 @@
 import { calculateOrderCost } from "@/lib/pricing";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { fulfillOrder, cancelOrder, refillOrder, type JanjezServiceWithProvider } from "@/lib/smm/fulfillment";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
+import { fulfillOrder, cancelOrder, refillOrder, type JanzejServiceWithProvider } from "@/lib/smm/fulfillment";
+import { debitWallet, creditWallet } from "@/lib/wallet";
 import { getBusinessSideAccountId } from "./config";
 import { withIdempotency } from "./idempotency";
 import type { BusinessOrderInput } from "./types";
 
 function resolveInputService(input: BusinessOrderInput) {
-  const janjezServiceId = input.janjezServiceId || input.serviceId || null;
+  const janzejServiceId = input.janjezServiceId || input.serviceId || null;
   return {
-    janjezServiceId,
+    janzejServiceId,
     skuId: input.skuId || null,
     catalogCategoryId: input.catalogCategoryId || null,
   };
@@ -18,11 +19,6 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
   const accountId = getBusinessSideAccountId();
   if (!accountId) {
     return { ok: false as const, code: "SERVER_MISCONFIGURED", message: "Business Side account is not configured." };
-  }
-
-  const supabase = createAdminClient();
-  if (!supabase) {
-    return { ok: false as const, code: "SERVER_MISCONFIGURED", message: "Server misconfigured." };
   }
 
   const quantity = Math.trunc(input.quantity);
@@ -39,7 +35,7 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
     resolveJanjezService(
       resolveInputService(input).skuId,
       resolveInputService(input).catalogCategoryId,
-      resolveInputService(input).janjezServiceId,
+      resolveInputService(input).janzejServiceId,
     ),
   );
 
@@ -51,39 +47,36 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
     return { ok: false as const, code: "INVALID_QUANTITY", message: "Quantity is outside the service limits." };
   }
 
-  const existing = await supabase
-    .from("orders")
-    .select("id, order_id, status, fulfillment_status, provider_status, provider_order_id, quantity, amount, link, link_submitted, created_at, updated_at")
-    .eq("user_id", accountId)
-    .eq("payment_reference", `business-side:${idempotencyKey}`)
-    .maybeSingle();
+  const existing = await prisma.orders.findFirst({
+    where: {
+      user_id: accountId,
+      payment_reference: `business-side:${idempotencyKey}`,
+    },
+    select: { id: true, order_id: true, status: true, fulfillment_status: true, provider_status: true, provider_order_id: true, quantity: true, amount: true, link: true, link_submitted: true, created_at: true, updated_at: true },
+  });
 
-  if (existing.data) {
-    return { ok: true as const, order: existing.data, fulfillment: null, replayed: true };
+  if (existing) {
+    return { ok: true as const, order: existing, fulfillment: null, replayed: true };
   }
 
   const amount = calculateOrderCost(service.selling_price_ksh, quantity);
-  const debit = await supabase.rpc("debit_wallet", {
-    p_user_id: accountId,
-    p_amount: amount,
-  });
+  const debit = await debitWallet(accountId, amount);
 
-  if (debit.error || !debit.data?.success) {
+  if (!debit.success) {
     return { ok: false as const, code: "INSUFFICIENT_BALANCE", message: "Business Side wallet has insufficient funds." };
   }
 
   const orderReference = `business-side:${idempotencyKey}`;
-  const inserted = await supabase
-    .from("orders")
-    .insert({
+  const inserted = await prisma.orders.create({
+    data: {
       user_id: accountId,
       order_id: `BS-${Date.now().toString(36).toUpperCase()}`,
       category: service.category,
       subcategory: service.subcategory,
       sku_id: service.slug,
       catalog_category_id: service.category,
-      janjez_service_id: service.id,
-      provider_service_id: service.provider_service_id,
+      janzej_service_id: service.id,
+      provider_service_id: service.provider_service_id || null,
       service_name: service.name,
       quantity,
       link_submitted: link,
@@ -98,34 +91,24 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
       quantity_source: "preset",
       runs: input.runs ?? null,
       interval: input.interval ?? null,
-    })
-    .select("*")
-    .single();
-
-  if (inserted.error || !inserted.data) {
-    await supabase.rpc("credit_wallet", {
-      p_user_id: accountId,
-      p_amount: amount,
-    });
-    return { ok: false as const, code: "SERVER_ERROR", message: inserted.error?.message || "Order could not be created." };
-  }
+    },
+  });
 
   try {
-    const fulfillment = await fulfillOrder(inserted.data.id);
-    return { ok: true as const, order: inserted.data, fulfillment, replayed: false };
+    const fulfillment = await fulfillOrder(inserted.id);
+    return { ok: true as const, order: inserted, fulfillment, replayed: false };
   } catch (error) {
-    const { data: latest } = await supabase
-      .from("orders")
-      .select("payment_status")
-      .eq("id", inserted.data.id)
-      .single();
+    const latest = await prisma.orders.findFirst({
+      where: { id: inserted.id },
+      select: { payment_status: true },
+    });
 
     if (latest?.payment_status === "paid") {
-      await supabase.rpc("credit_wallet", {
-        p_user_id: accountId,
-        p_amount: amount,
+      await creditWallet(accountId, amount);
+      await prisma.orders.update({
+        where: { id: inserted.id },
+        data: { payment_status: "refunded" },
       });
-      await supabase.from("orders").update({ payment_status: "refunded" }).eq("id", inserted.data.id);
     }
 
     return {
@@ -139,17 +122,12 @@ export async function createBusinessOrder(input: BusinessOrderInput, idempotency
 export async function getBusinessOrder(orderId: string) {
   const accountId = getBusinessSideAccountId();
   if (!accountId) return null;
-  const supabase = createAdminClient();
-  if (!supabase) return null;
 
-  const { data } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("id", orderId)
-    .eq("user_id", accountId)
-    .single();
+  const order = await prisma.orders.findFirst({
+    where: { id: orderId, user_id: accountId },
+  });
 
-  return data;
+  return order;
 }
 
 export async function cancelBusinessOrder(orderId: string) {
@@ -186,4 +164,4 @@ export function runOrderCreationIdempotent<T>(key: string, operation: () => Prom
   return withIdempotency<T>(`business-order:${key}`, 24 * 60 * 60 * 1000, operation);
 }
 
-export type { JanjezServiceWithProvider };
+export type { JanzejServiceWithProvider };
