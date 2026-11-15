@@ -1,14 +1,22 @@
-import { prisma } from "@/lib/supabase/admin";
+import { PrismaClient } from "@prisma/client";
 import { ORDER_SERVICES } from "@/lib/data";
 import { SERVICE_CATALOG } from "@/lib/service-catalog";
-import { normalizeSlug } from "@/lib/janjez-services";
 
-function findSubcategory(svc: (typeof ORDER_SERVICES)[number]): string | null {
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+const prisma =
+  globalForPrisma.prisma ?? new PrismaClient();
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+function findSubcategory(svc: { categoryId: string; name: string; id: string }): string | null {
   for (const catalogItem of SERVICE_CATALOG) {
     if (catalogItem.id === svc.categoryId) {
       for (const sub of catalogItem.subcategories) {
         const match = sub.deliverables.find(
-          (d) => d.name === svc.name || d.name === svc.id
+          (d: any) => d.name === svc.name || d.name === svc.id
         );
         if (match) {
           return sub.name;
@@ -17,6 +25,16 @@ function findSubcategory(svc: (typeof ORDER_SERVICES)[number]): string | null {
     }
   }
   return null;
+}
+
+function normalizeSlug(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/, "") || "service";
 }
 
 export async function seedServices() {
@@ -61,18 +79,4 @@ export async function seedServices() {
   }
 
   return { created, skipped, total: ORDER_SERVICES.length };
-}
-
-if (require.main === module) {
-  seedServices()
-    .then((result) => {
-      console.log(
-        `Seeded ${result.created} services (${result.skipped} skipped, ${result.total} total).`
-      );
-      process.exit(0);
-    })
-    .catch((err) => {
-      console.error("Seed failed:", err);
-      process.exit(1);
-    });
 }
