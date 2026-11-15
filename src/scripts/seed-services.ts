@@ -85,7 +85,7 @@ export async function seedServices() {
 
     await prisma.$executeRawUnsafe(`
       INSERT INTO "janzez_services" (
-        "id", "janzev_service_id", "name", "slug", "category", "subcategory",
+        "id", "janzez_service_id", "name", "slug", "category", "subcategory",
         "description", "selling_price_ksh", "min_quantity", "max_quantity",
         "is_active", "display_order", "supports_drip_feed", "supports_refill",
         "supports_cancel", "show_sidebar", "show_landing", "show_guarded",
