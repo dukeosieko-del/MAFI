@@ -11,11 +11,6 @@ const prisma =
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
-const janzezServiceKey = Object.keys(prisma).find((k: string) => k.toLowerCase().includes('janze'));
-console.log('All prisma keys:', Object.keys(prisma).filter(k => !k.startsWith('$') && !k.startsWith('_')).join(','));
-console.log('Janzez key found:', janzezServiceKey);
-const janzezService = janzezServiceKey ? (prisma as any)[janzezServiceKey] : null;
-
 export function normalizeSlug(input: string): string {
   return input
     .toLowerCase()
@@ -69,7 +64,8 @@ export async function seedServices() {
 
   for (let i = 0; i < services.length; i += BATCH_SIZE) {
     const batch = services.slice(i, i + BATCH_SIZE);
-    const creates: any[] = [];
+    const clauses: string[] = [];
+    const values: any[] = [];
 
     for (const svc of batch) {
       const baseSlug = normalizeSlug(`${svc.category}-${svc.id}`);
@@ -81,35 +77,66 @@ export async function seedServices() {
       }
       slugSet.add(slug);
 
-      creates.push(
-        janzezService.create({
-          data: {
-            janzevServiceId: svc.id ?? null,
-            name: svc.name ?? null,
-            slug,
-            category: svc.category ?? null,
-            subcategory: svc.subcategory ?? null,
-            description: null,
-            sellingPriceKsh: svc.rate ?? 0,
-            minQuantity: svc.min ?? 1,
-            maxQuantity: svc.max ?? 1000000,
-            isActive: svc.is_active ?? true,
-            displayOrder: 0,
-            supportsDripFeed: svc.supports_drip_feed ?? false,
-            supportsRefill: svc.refill ?? false,
-            supportsCancel: svc.cancel ?? false,
-            showSidebar: false,
-            showLanding: false,
-            showGuarded: true,
-            showAnonymous: true,
-            showCatalogue: true,
-          },
-        })
+      const sellingPriceKsh = svc.rate ?? 0;
+      const minQty = svc.min ?? 1;
+      const maxQty = svc.max ?? 1000000;
+      const isActive = svc.is_active ?? true;
+      const supportsDripFeed = svc.supports_drip_feed ?? false;
+      const supportsRefill = svc.refill ?? false;
+      const supportsCancel = svc.cancel ?? false;
+
+      const n = values.length;
+      clauses.push(
+        `(gen_random_uuid(), $${n + 1}, $${n + 2}, $${n + 3}, $${n + 4}, $${n + 5}, NULL, $${n + 6}, $${n + 7}, $${n + 8}, $${n + 9}, 0, $${n + 10}, $${n + 11}, $${n + 12}, false, false, true, true, true, now(), now())`
+      );
+      values.push(
+        svc.id ?? null,
+        svc.name ?? null,
+        slug,
+        svc.category ?? null,
+        svc.subcategory ?? null,
+        sellingPriceKsh,
+        minQty,
+        maxQty,
+        isActive,
+        supportsDripFeed,
+        supportsRefill,
+        supportsCancel
       );
     }
 
-    await prisma.$transaction(creates);
-    created += creates.length;
+    // Build the full query with all parameter placeholders
+    let query = `
+      INSERT INTO "janzez_services" (
+        "id", "janzez_service_id", "name", "slug", "category", "subcategory",
+        "description", "selling_price_ksh", "min_quantity", "max_quantity",
+        "is_active", "display_order", "supports_drip_feed", "supports_refill",
+        "supports_cancel", "show_sidebar", "show_landing", "show_guarded",
+        "show_anonymous", "show_catalogue", "created_at", "updated_at"
+      ) VALUES ${clauses.join(",\n")}
+    `;
+
+    // Use $executeRawUnsafe with manually replaced parameters
+    // Prisma $executeRaw tagged template doesn't work with dynamic clause count
+    // so we use $executeRawUnsafe with properly escaped values
+    let sql = query;
+    for (let v = 0; v < values.length; v++) {
+      const val = values[v];
+      let escaped: string;
+      if (val === null || val === undefined) {
+        escaped = "NULL";
+      } else if (typeof val === "boolean") {
+        escaped = val ? "true" : "false";
+      } else if (typeof val === "number") {
+        escaped = String(val);
+      } else {
+        escaped = `'${String(val).replace(/'/g, "''")}'`;
+      }
+      sql = sql.replace(`$${v + 1}`, escaped);
+    }
+
+    await prisma.$executeRawUnsafe(sql);
+    created += batch.length;
   }
 
   return { created, total: services.length };
