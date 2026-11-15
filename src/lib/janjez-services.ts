@@ -152,7 +152,7 @@ export async function listJanjezServices(activeOnly: boolean = false, placement?
     where[placement] = true;
   }
 
-  const all = await prisma.JanzezService.findMany({
+  const all = await prisma.janzezService.findMany({
     where,
     orderBy: [
       { displayOrder: "asc" },

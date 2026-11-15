@@ -26,7 +26,7 @@ export async function seedServices() {
   for (const svc of ORDER_SERVICES) {
     const slug = normalizeSlug(`${svc.categoryId}-${svc.id}`);
 
-    const existing = await prisma.JanzezService.findUnique({ where: { slug } });
+    const existing = await prisma.janzezService.findUnique({ where: { slug } });
     if (existing) {
       skipped++;
       continue;
@@ -34,7 +34,7 @@ export async function seedServices() {
 
     const subcategory = findSubcategory(svc);
 
-    await prisma.JanzezService.create({
+    await prisma.janzezService.create({
       data: {
         janzezServiceId: svc.id,
         name: svc.name,
