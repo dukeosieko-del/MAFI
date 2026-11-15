@@ -11,6 +11,8 @@ const prisma =
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
+const janzezService = (prisma as any).janzezService;
+
 export function normalizeSlug(input: string): string {
   return input
     .toLowerCase()
@@ -60,11 +62,11 @@ export async function seedServices() {
   const services = loadProviderData();
   let created = 0;
   const slugSet = new Set<string>();
-  const BATCH_SIZE = 500;
+  const BATCH_SIZE = 100;
 
   for (let i = 0; i < services.length; i += BATCH_SIZE) {
     const batch = services.slice(i, i + BATCH_SIZE);
-    const rows: any[] = [];
+    const creates: any[] = [];
 
     for (const svc of batch) {
       const baseSlug = normalizeSlug(`${svc.category}-${svc.id}`);
@@ -76,34 +78,35 @@ export async function seedServices() {
       }
       slugSet.add(slug);
 
-      rows.push({
-        janzevServiceId: svc.id ?? null,
-        name: svc.name ?? null,
-        slug,
-        category: svc.category ?? null,
-        subcategory: svc.subcategory ?? null,
-        description: null,
-        sellingPriceKsh: svc.rate ?? 0,
-        minQuantity: svc.min ?? 1,
-        maxQuantity: svc.max ?? 1000000,
-        isActive: svc.is_active ?? true,
-        displayOrder: 0,
-        supportsDripFeed: svc.supports_drip_feed ?? false,
-        supportsRefill: svc.refill ?? false,
-        supportsCancel: svc.cancel ?? false,
-        showSidebar: false,
-        showLanding: false,
-        showGuarded: true,
-        showAnonymous: true,
-        showCatalogue: true,
-      });
+      creates.push(
+        janzezService.create({
+          data: {
+            janzevServiceId: svc.id ?? null,
+            name: svc.name ?? null,
+            slug,
+            category: svc.category ?? null,
+            subcategory: svc.subcategory ?? null,
+            description: null,
+            sellingPriceKsh: svc.rate ?? 0,
+            minQuantity: svc.min ?? 1,
+            maxQuantity: svc.max ?? 1000000,
+            isActive: svc.is_active ?? true,
+            displayOrder: 0,
+            supportsDripFeed: svc.supports_drip_feed ?? false,
+            supportsRefill: svc.refill ?? false,
+            supportsCancel: svc.cancel ?? false,
+            showSidebar: false,
+            showLanding: false,
+            showGuarded: true,
+            showAnonymous: true,
+            showCatalogue: true,
+          },
+        })
+      );
     }
 
-    await (prisma as any).janzevService.createMany({
-      data: rows,
-      skipDuplicates: true,
-    });
-    created += rows.length;
+    await prisma.$transaction(creates);
+    created += creates.length;
   }
 
   return { created, total: services.length };
