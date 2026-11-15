@@ -33,8 +33,10 @@ export async function GET() {
       ORDER BY "display_order" ASC, "created_at" DESC
     `);
 
+    const countVal = countResult ? Number((countResult as any[])[0].count) : 0;
+
     return NextResponse.json({
-      count: countResult,
+      count: countVal,
       rowCount: (rows as any[]).length,
       firstRow: (rows as any[]).slice(0, 2),
     });
