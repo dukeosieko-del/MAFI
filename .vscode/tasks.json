@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start dev app and Cloudflare tunnel",
+      "type": "process",
+      "command": "docker",
+      "args": [
+        "compose",
+        "--env-file",
+        ".env.dev",
+        "-f",
+        "docker-compose.dev.yml",
+        "--profile",
+        "cloudflare",
+        "up",
+        "--build"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Start dev app only",
+      "type": "process",
+      "command": "docker",
+      "args": [
+        "compose",
+        "--env-file",
+        ".env.dev",
+        "-f",
+        "docker-compose.dev.yml",
+        "up",
+        "--build"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Stop dev stack",
+      "type": "process",
+      "command": "docker",
+      "args": ["compose", "-f", "docker-compose.dev.yml", "down"],
+      "problemMatcher": []
+    }
+  ]
+}
