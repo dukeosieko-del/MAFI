@@ -1,0 +1,9 @@
+{
+  "name": "janjez-social-dev",
+  "dockerComposeFile": "../docker-compose.dev.yml",
+  "service": "app",
+  "runServices": ["app"],
+  "workspaceFolder": "/app",
+  "shutdownAction": "stopCompose",
+  "overrideCommand": false
+}
