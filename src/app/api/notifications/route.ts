@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { getUserFromRequest } from "@/lib/server/auth-helpers";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import {
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       cursor,
     });
 
-    const unreadCount = result.notifications.filter((n) => !n.read_at).length;
+    const unreadCount = result.notifications.filter((n) => !n.readAt).length;
 
     return NextResponse.json({
       notifications: result.notifications,
@@ -87,14 +87,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createAdminClient();
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Server misconfigured" },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
     const audience = body.audience as NotificationAudience;
     const category = body.category as NotificationCategory;
@@ -103,7 +95,7 @@ export async function POST(request: NextRequest) {
     const messageBody = typeof body.body === "string" ? body.body : null;
     const link = typeof body.link === "string" ? body.link : null;
     const targetUserId =
-      typeof body.user_id === "string" ? body.user_id : null;
+      typeof body.userId === "string" ? body.userId : null;
 
     if (!title) {
       return NextResponse.json({ error: "title is required" }, { status: 400 });
@@ -144,12 +136,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: profile, error: profileErr } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", targetUserId)
-      .single();
-    if (profileErr || !profile) {
+    const profile = await prisma.profile.findFirst({
+      where: { id: targetUserId },
+      select: { id: true },
+    });
+    if (!profile) {
       return NextResponse.json(
         { error: "Target user not found" },
         { status: 404 }

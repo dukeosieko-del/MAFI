@@ -114,8 +114,8 @@ export async function initiateStkPush(params: StkPushParams): Promise<StkPushRes
       Timestamp: timestamp,
       TransactionType: "CustomerBuyGoodsOnline",
       Amount: Math.round(params.amount),
-      PartyA: shortCode,
-      PartyB: phone,
+      PartyA: phone,
+      PartyB: shortCode,
       PhoneNumber: phone,
     CallBackURL: params.callbackUrl,
     AccountReference: params.accountReference || `janjez-topup-${Date.now()}`,
@@ -325,7 +325,7 @@ export async function completeStkPayment(
     return { newBalance: 0, amount };
   }
 
-  const credit = await creditWallet(supabase as any, pendingTx.user_id, amount);
+  const credit = await creditWallet(pendingTx.user_id, amount);
   if (credit.error) {
     throw new Error(credit.error);
   }

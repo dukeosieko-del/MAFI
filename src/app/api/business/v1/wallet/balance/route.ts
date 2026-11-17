@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   }
 
   return businessSuccess({
-    balance: result.account.wallet_balance ?? 0,
+    balance: result.account.walletBalance ?? 0,
     currency: 'KES',
   });
 }

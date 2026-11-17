@@ -19,14 +19,14 @@ function NotificationItem({
   const [timeString, setTimeString] = useState("");
 
   useEffect(() => {
-    if (notif.created_at) {
+    if (notif.createdAt) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- locale-formatted date must be rendered client-side to avoid a hydration mismatch
-      setTimeString(new Date(notif.created_at).toLocaleDateString("en-US", {
+      setTimeString(new Date(notif.createdAt).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
       }));
     }
-  }, [notif.created_at]);
+  }, [notif.createdAt]);
 
   return (
     <Link
@@ -38,14 +38,14 @@ function NotificationItem({
         <div
           className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${severityDot(
             notif.severity,
-            !!notif.read_at
+            !!notif.readAt
           )}`}
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <h3
               className={`font-semibold text-sm ${
-                notif.read_at
+                notif.readAt
                   ? "text-kenya-white/50"
                   : "text-kenya-white"
               }`}
@@ -53,7 +53,7 @@ function NotificationItem({
               {notif.title}
             </h3>
             <span className="text-xs text-kenya-white/40 flex-shrink-0">
-              {timeString || new Date(notif.created_at).toISOString().split("T")[0]}
+              {timeString || new Date(notif.createdAt).toISOString().split("T")[0]}
             </span>
           </div>
           {notif.body && (
@@ -183,7 +183,7 @@ export default function NotificationBell() {
                   notif={notif}
                   onClick={() => {
                     close();
-                    if (!notif.read_at) {
+                    if (!notif.readAt) {
                       void markRead(notif.id);
                     }
                     if (!notif.link) {

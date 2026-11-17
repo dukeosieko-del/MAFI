@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { getUserFromRequest, requireAdmin } from "@/lib/server/auth-helpers";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { completeStkPayment, queryStkStatus, StkCallbackMetadata } from "@/lib/mpesa/client";
@@ -62,52 +62,45 @@ export async function POST(request: NextRequest) {
 
   const cutoff = new Date(Date.now() - MIN_AGE_MS).toISOString();
 
-  let query = supabase
-    .from("wallet_transactions")
-    .select("id, user_id, amount, reference, related_order_id, created_at")
-    .eq("status", "pending")
-    .eq("payment_method", "mpesa")
-    .lt("created_at", cutoff)
-    .order("created_at", { ascending: true })
-    .limit(50);
-
-  if (!reconcileAll && scopeUserId) {
-    query = query.eq("user_id", scopeUserId);
-  }
-
-  const { data: pending, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const pending = await prisma.walletTransaction.findMany({
+    where: {
+      status: "pending",
+      paymentMethod: "mpesa",
+      createdAt: { lt: new Date(cutoff) },
+      ...(!reconcileAll && scopeUserId ? { userId: scopeUserId } : {}),
+    },
+    select: { id: true, userId: true, amount: true, reference: true, relatedOrderId: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+    take: 50,
+  });
 
   const reconciled: Array<{ reference: string; amount: number; newBalance: number }> = [];
   const unresolved: Array<{ reference: string; reason: string }> = [];
 
-  for (const tx of pending || []) {
+  for (const tx of pending) {
     try {
-      const status = await queryStkStatus(tx.reference);
+      const status = await queryStkStatus(tx.reference || "");
       if (status.ResultCode !== "0") {
-        unresolved.push({ reference: tx.reference, reason: status.ResultDesc || `ResultCode ${status.ResultCode}` });
+        unresolved.push({ reference: tx.reference || "", reason: status.ResultDesc || `ResultCode ${status.ResultCode}` });
         continue;
       }
 
-      const result = await completeStkPayment(tx.reference, extractMetadata(status));
+      const result = await completeStkPayment(tx.reference || "", extractMetadata(status));
       reconciled.push({
-        reference: tx.reference,
+        reference: tx.reference || "",
         amount: result.amount,
         newBalance: result.newBalance,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      unresolved.push({ reference: tx.reference, reason: message });
-      console.error(`[mpesa-reconcile] ${tx.reference}: ${message}`);
+      unresolved.push({ reference: tx.reference || "", reason: message });
+      console.error(`[mpesa-reconcile] ${tx.reference || ""}: ${message}`);
     }
   }
 
   return NextResponse.json({
     ok: true,
-    checked: pending?.length || 0,
+    checked: pending.length,
     reconciled,
     unresolved,
   });

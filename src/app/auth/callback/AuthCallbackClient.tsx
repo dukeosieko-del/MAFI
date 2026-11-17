@@ -36,7 +36,7 @@ export default function AuthCallbackClient() {
 
     supabase.auth
       .exchangeCodeForSession(code)
-      .then(({ error: exchangeError }) => {
+      .then(({ error: exchangeError }: { error: Error | null }) => {
         if (exchangeError) {
           console.error("[auth/callback] exchange failed:", exchangeError.message);
           setError(exchangeError.message);
@@ -44,7 +44,7 @@ export default function AuthCallbackClient() {
         }
         router.replace(next);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error("[auth/callback] exchange threw:", err);
         setError(err instanceof Error ? err.message : "Unknown error");
       });

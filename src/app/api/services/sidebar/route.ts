@@ -9,8 +9,8 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const placement = searchParams.get("placement") as "show_sidebar" | "show_landing" | "show_guarded" | "show_anonymous" | "show_catalogue" | null;
-    const services = await listJanjezServices(true, placement || "show_sidebar");
+    const placement = searchParams.get("placement") as "showSidebar" | "showLanding" | "showGuarded" | "showAnonymous" | "showCatalogue" | null;
+    const services = await listJanjezServices(true, placement || "showSidebar");
 
     const categoryMap = new Map<string, { name: string; icon: string; href: string; subcategories: Map<string, { name: string; href: string; count: number }> }>();
 

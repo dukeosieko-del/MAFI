@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { completeStkPayment, StkCallbackMetadata } from "@/lib/mpesa/client";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { sendEmail } from "@/lib/email/mailer";
@@ -27,8 +27,6 @@ function extractMetadata(body: MpesaCallbackBody): StkCallbackMetadata {
   return {
     amount: get("Amount") ? Number(get("Amount")) : undefined,
     phone: get("PhoneNumber"),
-    // Safaricom sends "ReceiptNumber"; "MpesaReceiptNumber" is kept for
-    // backwards compatibility with older Daraja payloads.
     receipt: get("ReceiptNumber") || get("MpesaReceiptNumber"),
   };
 }
@@ -54,16 +52,13 @@ export async function POST(request: NextRequest) {
   const resultType = (body as Record<string, unknown>)?.ResultType?.toString();
 
   if (resultCode !== "0") {
-    const { error } = await supabase
-      .from("wallet_transactions")
-      .update({
+    await prisma.walletTransaction.updateMany({
+      where: { reference: checkoutRequestID, status: "pending" },
+      data: {
         status: "failed",
         notes: body?.ResultDesc || body?.ResponseDescription || "M-Pesa payment failed",
-      })
-      .eq("reference", checkoutRequestID)
-      .eq("status", "pending");
-
-    if (error) console.error("Failed to update pending tx:", error.message);
+      },
+    });
     return NextResponse.json({ ok: true, resultCode, credited: false });
   }
 
@@ -73,18 +68,17 @@ export async function POST(request: NextRequest) {
     const result = await completeStkPayment(checkoutRequestID, metadata);
     if (result.amount > 0) {
       try {
-        const { data: pendingTx } = await supabase
-          .from("wallet_transactions")
-          .select("user_id, reference")
-          .eq("reference", checkoutRequestID)
-          .single();
-        const txUserId = pendingTx?.user_id;
+        const pendingTx = await prisma.walletTransaction.findFirst({
+          where: { reference: checkoutRequestID },
+          select: { userId: true, reference: true },
+        });
+        const txUserId = pendingTx?.userId;
         if (txUserId) {
           const { data: authUser } = await supabase.auth.admin.getUserById(txUserId);
           const email = authUser?.user?.email;
           if (email) {
             const fullName =
-              ((authUser?.user?.user_metadata as { full_name?: string } | undefined)?.full_name) || null;
+              ((authUser?.user?.user_metadata as { fullName?: string } | undefined)?.fullName) || null;
             const { subject, html, text } = getPaymentReceivedEmail({
               customerName: fullName,
               amount: result.amount,
@@ -112,13 +106,12 @@ export async function POST(request: NextRequest) {
     // The money is already in Safaricom's hands: keep the transaction PENDING
     // (do not mark it failed) so the reconciliation job can retry the credit
     // instead of losing the deposit. A 500 also makes Safaricom redeliver.
-    await supabase
-      .from("wallet_transactions")
-      .update({
+    await prisma.walletTransaction.updateMany({
+      where: { reference: checkoutRequestID, status: "pending" },
+      data: {
         notes: `Wallet credit pending retry: ${error instanceof Error ? error.message : String(error)}`,
-      })
-      .eq("reference", checkoutRequestID)
-      .eq("status", "pending");
+      },
+    });
     return NextResponse.json({ error: "Payment received but wallet credit failed" }, { status: 500 });
   }
 

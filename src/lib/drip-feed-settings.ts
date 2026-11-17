@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 
 export interface DripFeedLimits {
   enabled: boolean;
@@ -14,17 +14,16 @@ export async function getDripFeedLimits(): Promise<DripFeedLimits> {
     return { enabled: true, min_runs: 1, max_runs: 20, min_interval: 10, max_interval: 1440 };
   }
 
-  const { data, error } = await supabase
-    .from("platform_settings")
-    .select("value")
-    .eq("key", "drip_feed_limits")
-    .single();
+  const setting = await prisma.platformSetting.findFirst({
+    where: { key: "drip_feed_limits" },
+    select: { value: true },
+  });
 
-  if (error || !data) {
+  if (!setting) {
     return { enabled: true, min_runs: 1, max_runs: 20, min_interval: 10, max_interval: 1440 };
   }
 
-  const value = data.value as Record<string, unknown>;
+  const value = setting.value as Record<string, unknown>;
   return {
     enabled: value.enabled !== false,
     min_runs: Number(value.min_runs) || 1,

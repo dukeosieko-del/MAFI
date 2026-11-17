@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { initiateStkPush, getCallbackUrl } from "@/lib/mpesa/client";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { getUserFromRequest } from "@/lib/server/auth-helpers";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { calculateMpesaAmount } from "@/lib/pricing";
@@ -37,21 +37,19 @@ export async function POST(request: NextRequest) {
   let relatedOrderId: string | null = null;
 
   if (orderId) {
-    const { data: order } = await supabase
-      .from("orders")
-      .select("id, order_id, amount, amount_paid, user_id, payment_status")
-      .eq("id", orderId)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, userId: user.id },
+      select: { id: true, amount: true, amountPaid: true, paymentStatus: true },
+    });
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
-    if (order.payment_status === "paid") {
+    if (order.paymentStatus === "paid") {
       return NextResponse.json({ error: "This order has already been paid" }, { status: 409 });
     }
 
-    const expected = Number(order.amount_paid ?? order.amount) || 0;
+    const expected = Number(order.amountPaid ?? order.amount) || 0;
     if (expected <= 0) {
       return NextResponse.json({ error: "Order has no payable amount" }, { status: 400 });
     }
@@ -74,29 +72,26 @@ export async function POST(request: NextRequest) {
         : `Wallet top-up for ${user.email}`,
     });
 
-    const { error: txError } = await supabase.from("wallet_transactions").insert({
-      user_id: user.id,
-      type: relatedOrderId ? "order_payment" : "topup",
-      amount: chargeAmount,
-      currency: "KES",
-      payment_method: "mpesa",
-      mpesa_phone: phoneNumber,
-      reference: response.CheckoutRequestID,
-      related_order_id: relatedOrderId,
-      status: "pending",
-      notes: relatedOrderId ? "M-Pesa STK push initiated for order" : "M-Pesa STK push initiated",
+    await prisma.walletTransaction.create({
+      data: {
+        userId: user.id,
+        type: relatedOrderId ? "order_payment" : "topup",
+        amount: chargeAmount,
+        currency: "KES",
+        paymentMethod: "mpesa",
+        mpesaPhone: phoneNumber,
+        reference: response.CheckoutRequestID,
+        relatedOrderId: relatedOrderId,
+        status: "pending",
+        notes: relatedOrderId ? "M-Pesa STK push initiated for order" : "M-Pesa STK push initiated",
+      },
     });
 
-    if (txError) {
-      console.error("wallet_transactions insert failed:", txError.message);
-    }
-
     if (relatedOrderId) {
-      await supabase
-        .from("orders")
-        .update({ payment_status: "pending_mpesa" })
-        .eq("id", relatedOrderId)
-        .neq("payment_status", "paid");
+      await prisma.order.update({
+        where: { id: relatedOrderId },
+        data: { paymentStatus: "pending_mpesa" },
+      });
     }
 
     return NextResponse.json({

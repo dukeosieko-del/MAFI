@@ -70,7 +70,7 @@ export function useNotifications(
         },
       });
       setNotifications((prev) =>
-        prev.map((n) => (n.read_at ? n : { ...n, read_at: new Date().toISOString() }))
+        prev.map((n) => (n.readAt ? n : { ...n, readAt: new Date().toISOString() }))
       );
       setUnreadCount(0);
     } catch {
@@ -91,7 +91,7 @@ export function useNotifications(
           body: JSON.stringify({ read: true }),
         });
         setNotifications((prev) =>
-          prev.map((n) => (n.id === id && !n.read_at ? { ...n, read_at: new Date().toISOString() } : n))
+          prev.map((n) => (n.id === id && !n.readAt ? { ...n, readAt: new Date().toISOString() } : n))
         );
         setUnreadCount((c) => Math.max(0, c - 1));
       } catch {
@@ -128,7 +128,7 @@ export function useNotifications(
             if (prev.some((n) => n.id === row.id)) return prev;
             return [row, ...prev].slice(0, limit);
           });
-          if (!row.read_at) setUnreadCount((c) => c + 1);
+          if (!row.readAt) setUnreadCount((c) => c + 1);
         }
       );
 

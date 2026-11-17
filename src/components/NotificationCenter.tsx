@@ -46,8 +46,8 @@ export default function NotificationCenter({
     const today: Notification[] = [];
     const earlier: Notification[] = [];
     for (const n of notifications) {
-      if (!n.created_at) continue;
-      const d = new Date(n.created_at);
+      if (!n.createdAt) continue;
+      const d = new Date(n.createdAt);
       if (isNaN(d.getTime())) continue;
       const dateKey = d.toISOString().split("T")[0];
       if (dateKey === todayReference) today.push(n);
@@ -120,7 +120,7 @@ export default function NotificationCenter({
             <NotificationRow
               key={n.id}
               notif={n}
-              onRead={() => !n.read_at && void markRead(n.id)}
+              onRead={() => !n.readAt && void markRead(n.id)}
             />
           ))}
         </Section>
@@ -132,7 +132,7 @@ export default function NotificationCenter({
             <NotificationRow
               key={n.id}
               notif={n}
-              onRead={() => !n.read_at && void markRead(n.id)}
+              onRead={() => !n.readAt && void markRead(n.id)}
             />
           ))}
         </Section>
@@ -161,22 +161,22 @@ function NotificationRow({
   notif: Notification;
   onRead: () => void;
 }) {
-  const isRead = !!notif.read_at;
+  const isRead = !!notif.readAt;
   const severity = SEVERITY_BADGES[notif.severity] ?? SEVERITY_BADGES.info;
   const linkHref = notif.link || "#";
   const [timeString, setTimeString] = useState("");
 
   useEffect(() => {
-    if (notif.created_at) {
+    if (notif.createdAt) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- locale-formatted timestamp must be rendered client-side to avoid a hydration mismatch
-      setTimeString(new Date(notif.created_at).toLocaleString("en-US", {
+      setTimeString(new Date(notif.createdAt).toLocaleString("en-US", {
         month: "short",
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
       }));
     }
-  }, [notif.created_at]);
+  }, [notif.createdAt]);
 
   const inner = (
     <div className="flex items-start gap-3 p-4">
@@ -201,7 +201,7 @@ function NotificationRow({
               {severity.label}
             </span>
             <span className="text-xs text-kenya-white/40">
-              {timeString || new Date(notif.created_at).toISOString().split("T")[0]}
+              {timeString || new Date(notif.createdAt).toISOString().split("T")[0]}
             </span>
           </div>
         </div>

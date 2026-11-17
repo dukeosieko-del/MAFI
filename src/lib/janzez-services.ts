@@ -1,33 +1,97 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { fetchProviderServices } from "@/lib/smm/provider";
 import { getJanjezSellingPrice } from "@/lib/pricing";
 
-const SERVICES_CACHE = new Map<string, { services: JanjezService[]; timestamp: number }>();
-const SERVICES_CACHE_TTL_MS = 30_000;
-
-export interface JanjezService {
+export interface JanzejService {
   id: string;
   name: string;
   slug: string;
   category: string;
   subcategory: string | null;
   description: string | null;
-  selling_price_ksh: number;
-  provider_service_id: string | null;
-  min_quantity: number;
-  max_quantity: number;
+  sellingPriceKsh: number;
+  providerServiceId: string | null;
+  minQuantity: number;
+  maxQuantity: number;
   is_active: boolean;
-  display_order: number;
-  supports_drip_feed: boolean;
-  supports_refill: boolean;
-  supports_cancel: boolean;
-  show_sidebar: boolean;
-  show_landing: boolean;
-  show_guarded: boolean;
-  show_anonymous: boolean;
-  show_catalogue: boolean;
-  created_at: string;
-  updated_at: string;
+  displayOrder: number;
+  supportsDripFeed: boolean;
+  supportsRefill: boolean;
+  supportsCancel: boolean;
+  showSidebar: boolean;
+  showLanding: boolean;
+  showGuarded: boolean;
+  showAnonymous: boolean;
+  showCatalogue: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ServiceTier = "champion" | "premium" | "enterprise";
+
+export interface TierInfo {
+  tier: ServiceTier;
+  label: string;
+  description: string;
+  maxPrice: number;
+  color: string;
+  href: string;
+}
+
+export const TIERS: TierInfo[] = [
+  {
+    tier: "champion",
+    label: "Champion",
+    description: "Budget-friendly essentials — under KES 2,000",
+    maxPrice: 2000,
+    color: "bg-kenya-green",
+    href: "/services/champion",
+  },
+  {
+    tier: "premium",
+    label: "Premium",
+    description: "Mid-tier services — KES 2,000 to KES 6,000",
+    maxPrice: 6000,
+    color: "bg-blue-500",
+    href: "/services/premium",
+  },
+  {
+    tier: "enterprise",
+    label: "Enterprise",
+    description: "High-volume solutions — above KES 6,000",
+    maxPrice: Infinity,
+    color: "bg-kenya-red",
+    href: "/services/enterprise",
+  },
+];
+
+export function getServiceTier(price: number): ServiceTier {
+  if (price <= 2000) return "champion";
+  if (price <= 6000) return "premium";
+  return "enterprise";
+}
+
+export function getTierInfo(tier: ServiceTier): TierInfo | undefined {
+  return TIERS.find((t) => t.tier === tier);
+}
+
+export function filterServicesByTier(services: JanzejService[], tier: ServiceTier): JanzejService[] {
+  if (tier === "champion") {
+    return services.filter((s) => s.sellingPriceKsh <= 2000);
+  }
+  if (tier === "premium") {
+    return services.filter((s) => s.sellingPriceKsh > 2000 && s.sellingPriceKsh <= 6000);
+  }
+  return services.filter((s) => s.sellingPriceKsh > 6000);
+}
+
+export function getTierHref(tier: ServiceTier): string {
+  const tierInfo = getTierInfo(tier);
+  return tierInfo?.href ?? "/services";
+}
+
+export function getServiceTierHref(price: number): string {
+  return getTierHref(getServiceTier(price));
 }
 
 export interface ProviderServiceRow {
@@ -40,7 +104,7 @@ export interface ProviderServiceRow {
   max: number;
   refill: boolean;
   cancel: boolean;
-  supports_drip_feed: boolean;
+  supportsDripFeed: boolean;
   is_active: boolean;
   fetched_at: string;
   raw: unknown;
@@ -54,189 +118,159 @@ export async function listProviderServices(params: {
   const supabase = createAdminClient();
   if (!supabase) return [];
 
-  let query = supabase
-    .from("provider_services")
-    .select("*");
+  let where: any = {};
 
   if (params.search) {
-    query = query.or(`name.ilike.%${params.search}%,id.ilike.%${params.search}%`);
+    where.OR = [
+      { name: { contains: params.search, mode: "insensitive" } },
+      { id: { contains: params.search, mode: "insensitive" } },
+    ];
   }
 
   if (params.category) {
-    query = query.ilike("category", `%${params.category}%`);
+    where.category = { contains: params.category, mode: "insensitive" };
   }
 
   if (params.supportsDripFeed) {
-    query = query.eq("supports_drip_feed", true);
+    where.supportsDripFeed = true;
   }
 
-  const { data, error } = await query.order("rate", { ascending: true });
-  if (error) {
-    console.error("listProviderServices error:", error);
-    return [];
-  }
+  const data = await prisma.providerService.findMany({
+    where,
+    orderBy: { rate: "asc" },
+  });
 
   return (data || []) as unknown as ProviderServiceRow[];
 }
 
-export async function listJanjezServices(activeOnly: boolean = false, placement?: keyof Pick<JanjezService, "show_sidebar" | "show_landing" | "show_guarded" | "show_anonymous" | "show_catalogue">): Promise<JanjezService[]> {
+export async function listJanjezServices(activeOnly: boolean = false, placement?: keyof Pick<JanzejService, "showSidebar" | "showLanding" | "showGuarded" | "showAnonymous" | "showCatalogue">): Promise<JanzejService[]> {
   const supabase = createAdminClient();
   if (!supabase) return [];
 
-  let query = supabase
-    .from("janjez_services")
-    .select("id, name, slug, category, subcategory, description, selling_price_ksh, provider_service_id, min_quantity, max_quantity, is_active, display_order, supports_drip_feed, supports_refill, supports_cancel, show_sidebar, show_landing, show_guarded, show_anonymous, show_catalogue, created_at, updated_at")
-    .order("display_order", { ascending: true })
-    .order("created_at", { ascending: false });
+  let where: any = {};
 
   if (activeOnly) {
-    query = query.eq("is_active", true);
+    where.isActive = true;
   }
 
   if (placement) {
-    query = query.eq(placement, true);
+    where[placement] = true;
   }
 
-  const cacheKey = `${activeOnly}:${placement ?? ""}`;
-  const cached = SERVICES_CACHE.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < SERVICES_CACHE_TTL_MS) {
-    return cached.services;
-  }
+  const all = await prisma.janjezService.findMany({
+    where,
+    orderBy: [
+      { displayOrder: "asc" },
+      { createdAt: "desc" },
+    ],
+  });
 
-  const all: JanjezService[] = [];
-  let page = 0;
-  const pageSize = 1000;
-  while (true) {
-    const from = page * pageSize;
-    const to = from + pageSize - 1;
-    const { data, error } = await query.range(from, to);
-    if (error) {
-      console.error("listJanjezServices error:", error);
-      return [];
-    }
-    if (!data || data.length === 0) break;
-    all.push(...(data as unknown as JanjezService[]));
-    if (data.length < pageSize) break;
-    page++;
-  }
-
-  SERVICES_CACHE.set(cacheKey, { services: all, timestamp: Date.now() });
-  return all;
+  return all as unknown as JanzejService[];
 }
 
-export async function getJanjezService(id: string): Promise<JanjezService | null> {
+export async function getJanjezService(id: string): Promise<JanzejService | null> {
   const supabase = createAdminClient();
   if (!supabase) return null;
 
-  const { data, error } = await supabase
-    .from("janjez_services")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const data = await prisma.janjezService.findFirst({
+    where: { id },
+  });
 
-  if (error || !data) return null;
-  return data as unknown as JanjezService;
+  if (!data) return null;
+  return data as unknown as JanzejService;
 }
 
-export async function createJanjezService(input: {
+export async function createJanzejService(input: {
   name: string;
   slug: string;
   category: string;
   subcategory?: string;
   description?: string;
-  selling_price_ksh: number;
-  provider_service_id?: string | null;
-  min_quantity: number;
-  max_quantity: number;
+  sellingPriceKsh: number;
+  providerServiceId?: string | null;
+  minQuantity: number;
+  maxQuantity: number;
   is_active?: boolean;
-  display_order?: number;
-  supports_drip_feed?: boolean;
-  supports_refill?: boolean;
-  supports_cancel?: boolean;
-  show_sidebar?: boolean;
-  show_landing?: boolean;
-  show_guarded?: boolean;
-  show_anonymous?: boolean;
-  show_catalogue?: boolean;
-}): Promise<JanjezService | { error: string }> {
+  displayOrder?: number;
+  supportsDripFeed?: boolean;
+  supportsRefill?: boolean;
+  supportsCancel?: boolean;
+  showSidebar?: boolean;
+  showLanding?: boolean;
+  showGuarded?: boolean;
+  showAnonymous?: boolean;
+  showCatalogue?: boolean;
+}): Promise<JanzejService | { error: string }> {
   const supabase = createAdminClient();
   if (!supabase) return { error: "Server misconfigured" };
 
-  const { data, error } = await supabase
-    .from("janjez_services")
-    .insert({
+  const data = await prisma.janjezService.create({
+    data: {
       name: input.name,
       slug: input.slug,
       category: input.category,
       subcategory: input.subcategory || null,
       description: input.description || null,
-      selling_price_ksh: input.selling_price_ksh,
-      provider_service_id: input.provider_service_id || null,
-      min_quantity: input.min_quantity,
-      max_quantity: input.max_quantity,
-      is_active: input.is_active ?? true,
-      display_order: input.display_order ?? 0,
-      supports_drip_feed: input.supports_drip_feed ?? false,
-      supports_refill: input.supports_refill ?? false,
-      supports_cancel: input.supports_cancel ?? false,
-      show_sidebar: input.show_sidebar ?? false,
-      show_landing: input.show_landing ?? false,
-      show_guarded: input.show_guarded ?? true,
-      show_anonymous: input.show_anonymous ?? true,
-      show_catalogue: input.show_catalogue ?? true,
-    })
-    .select("*")
-    .single();
+      sellingPriceKsh: input.sellingPriceKsh,
+      providerServiceId: input.providerServiceId || null,
+      minQuantity: input.minQuantity,
+      maxQuantity: input.maxQuantity,
+      isActive: input.is_active ?? true,
+      displayOrder: input.displayOrder ?? 0,
+      supportsDripFeed: input.supportsDripFeed ?? false,
+      supportsRefill: input.supportsRefill ?? false,
+      supportsCancel: input.supportsCancel ?? false,
+      showSidebar: input.showSidebar ?? false,
+      showLanding: input.showLanding ?? false,
+      showGuarded: input.showGuarded ?? true,
+      showAnonymous: input.showAnonymous ?? true,
+      showCatalogue: input.showCatalogue ?? true,
+    },
+  });
 
-  if (error) return { error: error.message };
-  return data as unknown as JanjezService;
+  return data as unknown as JanzejService;
 }
 
-export async function updateJanjezService(id: string, input: Partial<{
+export async function updateJanzejService(id: string, input: Partial<{
   name: string;
   slug: string;
   category: string;
   subcategory: string | null;
   description: string | null;
-  selling_price_ksh: number;
-  provider_service_id: string | null;
-  min_quantity: number;
-  max_quantity: number;
+  sellingPriceKsh: number;
+  providerServiceId: string | null;
+  minQuantity: number;
+  maxQuantity: number;
   is_active: boolean;
-  display_order: number;
-  supports_drip_feed: boolean;
-  supports_refill: boolean;
-  supports_cancel: boolean;
-  show_sidebar: boolean;
-  show_landing: boolean;
-  show_guarded: boolean;
-  show_anonymous: boolean;
-  show_catalogue: boolean;
-}>): Promise<JanjezService | { error: string }> {
+  displayOrder: number;
+  supportsDripFeed: boolean;
+  supportsRefill: boolean;
+  supportsCancel: boolean;
+  showSidebar: boolean;
+  showLanding: boolean;
+  showGuarded: boolean;
+  showAnonymous: boolean;
+  showCatalogue: boolean;
+}>): Promise<JanzejService | { error: string }> {
   const supabase = createAdminClient();
   if (!supabase) return { error: "Server misconfigured" };
 
-  const { data, error } = await supabase
-    .from("janjez_services")
-    .update(input)
-    .eq("id", id)
-    .select("*")
-    .single();
+  const data = await prisma.janjezService.update({
+    where: { id },
+    data: input as any,
+  });
 
-  if (error) return { error: error.message };
-  return data as unknown as JanjezService;
+  return data as unknown as JanzejService;
 }
 
-export async function deleteJanjezService(id: string): Promise<void | { error: string }> {
+export async function deleteJanzejService(id: string): Promise<void | { error: string }> {
   const supabase = createAdminClient();
   if (!supabase) return { error: "Server misconfigured" };
 
-  const { error } = await supabase
-    .from("janjez_services")
-    .update({ is_active: false })
-    .eq("id", id);
-
-  if (error) return { error: error.message };
+  await prisma.janjezService.update({
+    where: { id },
+    data: { isActive: false },
+  });
 }
 
 export function normalizeSlug(input: string): string {
@@ -261,7 +295,7 @@ export async function getProviderCatalogFresh(): Promise<ProviderServiceRow[]> {
     max: parseInt(s.max, 10),
     refill: s.refill,
     cancel: s.cancel,
-    supports_drip_feed: s.dripfeed === true,
+    supportsDripFeed: s.dripfeed === true,
     is_active: true,
     fetched_at: new Date().toISOString(),
     raw: s,

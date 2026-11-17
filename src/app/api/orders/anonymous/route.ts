@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { listJanjezServices } from "@/lib/janzez-services";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { validateLink, validateNumber, sanitizeString } from "@/lib/server/validation";
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      janjez_service_id,
+      janzez_service_id,
       link_submitted,
       quantity,
       phone_number,
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       interval,
       email,
     } = body as {
-      janjez_service_id?: string;
+      janzez_service_id?: string;
       link_submitted?: string;
       quantity?: number;
       phone_number?: string;
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     const errors: string[] = [];
 
-    if (!janjez_service_id) errors.push("janjez_service_id is required");
+    if (!janzez_service_id) errors.push("janzez_service_id is required");
     if (!phone_number || !/^\d{9,15}$/.test(phone_number.replace(/\s+/g, ""))) {
       errors.push("A valid phone number is required");
     }
@@ -77,27 +77,27 @@ export async function POST(request: NextRequest) {
 
     const numQuantity = Number(quantity);
 
-    const services = await listJanjezServices(true, "show_anonymous");
-    const janjezService = services.find((s) => s.id === janjez_service_id) || null;
+    const services = await listJanjezServices(true, "showAnonymous");
+    const janjezService = services.find((s) => s.providerServiceId === janzez_service_id) || null;
     if (!janjezService) {
       return NextResponse.json({ error: "Service not found or not available" }, { status: 404 });
     }
 
-    if (!janjezService.provider_service_id) {
+    if (!janjezService.providerServiceId) {
       return NextResponse.json({ error: "Service is not configured for ordering. Please try another service." }, { status: 400 });
     }
 
-    if (numQuantity < janjezService.min_quantity || numQuantity > janjezService.max_quantity) {
+    if (numQuantity < janjezService.minQuantity || numQuantity > janjezService.maxQuantity) {
       return NextResponse.json({
-        error: `Quantity must be between ${janjezService.min_quantity} and ${janjezService.max_quantity.toLocaleString()}.`,
+        error: `Quantity must be between ${janjezService.minQuantity} and ${janjezService.maxQuantity.toLocaleString()}.`,
       }, { status: 400 });
     }
 
-    if ((runs != null || interval != null) && !janjezService.supports_drip_feed) {
+    if ((runs != null || interval != null) && !janjezService.supportsDripFeed) {
       return NextResponse.json({ error: "This service does not support drip-feed" }, { status: 400 });
     }
 
-    const expectedAmount = calculateOrderCost(janjezService.selling_price_ksh, numQuantity);
+    const expectedAmount = calculateOrderCost(janjezService.sellingPriceKsh, numQuantity);
 
     if (isNaN(expectedAmount) || expectedAmount <= 0) {
       return NextResponse.json({ error: "Unable to verify service price" }, { status: 400 });
@@ -106,35 +106,32 @@ export async function POST(request: NextRequest) {
     const orderId = `ORD-${Date.now().toString(36).toUpperCase()}`;
     const amountForMpesa = calculateMpesaAmount(expectedAmount);
 
-    const { data: orderData, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        order_id: orderId,
-        user_id: null,
-        phone_number: sanitizeString(phone_number || "", 30),
-        anonymous: true,
+    const orderData = await prisma.order.create({
+      data: {
+        orderId: orderId,
+        userId: undefined,
         category: janjezService.category,
         subcategory: janjezService.subcategory || janjezService.name,
-        service_name: janjezService.name,
-        sku_id: janjezService.slug,
-        janjez_service_id,
-        link_submitted: sanitizeString(link_submitted, 500),
-        link: sanitizeString(link_submitted, 500),
+        serviceName: janjezService.name,
+        skuId: janjezService.slug,
+        janzezServiceId: janzez_service_id,
+        linkSubmitted: sanitizeString(link_submitted, 500),
+        link: sanitizeString(link_submitted || "", 500) || "",
         quantity: numQuantity,
         amount: expectedAmount,
-        amount_paid: amountForMpesa,
-        quantity_source: "preset",
+        amountPaid: amountForMpesa,
+        quantitySource: "preset",
         status: "pending",
-        payment_status: "pending_mpesa",
-        fulfillment_status: "pending",
-        runs: runs ?? null,
-        interval: interval ?? null,
-      })
-      .select("id, order_id")
-      .single();
+        paymentStatus: "pending_mpesa",
+        fulfillmentStatus: "pending",
+        dripFeedRuns: runs ?? null,
+        dripFeedInterval: interval ?? null,
+      },
+      select: { id: true, orderId: true },
+    });
 
-    if (orderError || !orderData) {
-      console.error("Anonymous order insert error:", orderError?.message);
+    if (!orderData) {
+      console.error("Anonymous order insert error: no data returned");
       return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
     }
 
@@ -143,7 +140,7 @@ export async function POST(request: NextRequest) {
       const linkValue = sanitizeString(link_submitted, 500) ?? "";
       const { subject, html, text } = getOrderReceivedEmail({
         customerName: null,
-        orderId: orderData.order_id || orderData.id.slice(0, 8),
+        orderId: orderData.orderId || orderData.id.slice(0, 8),
         service: janjezService.name,
         quantity: numQuantity,
         amount: expectedAmount,
@@ -176,49 +173,43 @@ export async function POST(request: NextRequest) {
         transactionDesc: `Anonymous order payment for ${janjezService.name}`,
       });
 
-      const { error: txError } = await supabase.from("wallet_transactions").insert({
-        user_id: null,
-        phone_number: sanitizeString(phone_number || "", 30),
-        type: "order_payment",
-        amount: amountForMpesa,
-        currency: "KES",
-        payment_method: "mpesa",
-        mpesa_phone: phone_number,
-        reference: stkRes.CheckoutRequestID,
-        related_order_id: orderData.id,
-        status: "pending",
-        notes: `Anonymous order STK for ${orderId}`,
+      await prisma.walletTransaction.create({
+        data: {
+          userId: undefined,
+          mpesaPhone: sanitizeString(phone_number || "", 30),
+          type: "order_payment",
+          amount: amountForMpesa,
+          currency: "KES",
+          paymentMethod: "mpesa",
+          reference: stkRes.CheckoutRequestID,
+          relatedOrderId: orderData.id,
+          status: "pending",
+          notes: `Anonymous order STK for ${orderId}`,
+        } as any,
       });
-
-      if (txError) {
-        console.error("Anonymous wallet_transactions insert error:", txError.message);
-      }
 
       return NextResponse.json({
         ok: true,
-        order_id: orderData.order_id,
+        orderId: orderData.orderId,
         checkoutRequestId: stkRes.CheckoutRequestID,
         amount: expectedAmount,
         amountForMpesa,
         message: stkRes.CustomerMessage || "STK push initiated. Check your phone.",
       });
     } catch (stkError) {
-      console.error("Anonymous STK push error:", stkError);
+      console.error("Anonymous STT push error:", stkError);
       const stkErrorMsg = stkError instanceof Error ? stkError.message : "Unknown error";
-      const isCallBackURL = stkErrorMsg.includes("Invalid CallBackURL") || stkErrorMsg.includes("CallBackURL");
-      await supabase
-        .from("orders")
-        .update({
-          fulfillment_status: isCallBackURL ? "failed" : "failed",
-          fulfillment_error: `M-Pesa payment initiation failed: ${stkErrorMsg}`,
-        })
-        .eq("id", orderData.id);
+      await prisma.order.update({
+        where: { id: orderData.id },
+        data: {
+          fulfillmentStatus: "failed",
+          fulfillmentError: `M-Pesa payment initiation failed: ${stkErrorMsg}`,
+        },
+      });
       return NextResponse.json({
         ok: false,
-        order_id: orderData.order_id,
-        error: isCallBackURL
-          ? "Payment gateway not configured. Please contact support."
-          : "Failed to initiate M-Pesa payment. Please try again.",
+        orderId: orderData.orderId,
+        error: "Payment gateway not configured. Please contact support.",
       }, { status: 200 });
     }
   } catch (error) {

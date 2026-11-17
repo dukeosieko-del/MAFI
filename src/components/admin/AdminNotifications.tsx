@@ -256,7 +256,7 @@ export default function AdminNotifications() {
                     {n.title}
                   </h4>
                   <span className="text-xs text-kenya-white/40">
-                    {new Date(n.created_at).toLocaleString()}
+                    {new Date(n.createdAt).toLocaleString()}
                   </span>
                 </div>
                 {n.body && (

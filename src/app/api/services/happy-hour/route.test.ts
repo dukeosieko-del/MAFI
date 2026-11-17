@@ -64,6 +64,6 @@ describe("happy hour API", () => {
 
     expect(res.status).toBe(200);
     expect(json.services.length).toBeGreaterThanOrEqual(1);
-    expect(chainable.eq).toHaveBeenCalledWith("show_catalogue", true);
+    expect(chainable.eq).toHaveBeenCalledWith("showCatalogue", true);
   });
 });

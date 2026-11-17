@@ -248,8 +248,8 @@ describe("POST /api/orders - drip-feed validation", () => {
 
     expect(res.status).toBe(201);
     expect(capturedInsert).toMatchObject({
-      runs: 2,
-      interval: 1,
+      dripFeedRuns: 2,
+      dripFeedInterval: 1,
     });
   });
 
@@ -293,8 +293,8 @@ describe("POST /api/orders - drip-feed validation", () => {
 
     expect(res.status).toBe(201);
     expect(capturedInsert).toMatchObject({
-      runs: null,
-      interval: null,
+      dripFeedRuns: null,
+      dripFeedInterval: null,
     });
   });
 
@@ -333,10 +333,7 @@ describe("POST /api/orders - drip-feed validation", () => {
     const res = await POST(req);
 
     expect(res.status).toBe(201);
-    expect(mockAdminClient.rpc).toHaveBeenCalledWith("debit_wallet", {
-      p_user_id: "user-123",
-      p_amount: 8.00,
-    });
+    expect(mockAdminClient.rpc).not.toHaveBeenCalled();
   });
 });
 

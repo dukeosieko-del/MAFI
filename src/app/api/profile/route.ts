@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, prisma } from "@/lib/supabase/admin";
 import { getUserFromRequest } from "@/lib/server/auth-helpers";
 import { rateLimit } from "@/lib/server/rate-limiter";
 import { validateString } from "@/lib/server/validation";
@@ -19,22 +19,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = createAdminClient();
-    if (!supabase) {
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    const profile = await prisma.profile.findFirst({
+      where: { id: user.id },
+    });
+
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ profile: data });
+    return NextResponse.json({ profile });
   } catch {
     return NextResponse.json({ error: "Failed to load profile" }, { status: 500 });
   }
@@ -48,11 +41,6 @@ export async function PATCH(request: NextRequest) {
     const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const supabase = createAdminClient();
-    if (!supabase) {
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
     }
 
     const body = await request.json();
@@ -93,27 +81,21 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Validation failed", details: errors }, { status: 400 });
     }
 
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (full_name !== undefined) updates.full_name = full_name;
+    const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+    if (full_name !== undefined) updates.fullName = full_name;
     if (phone !== undefined) updates.phone = phone;
-    if (avatar_url !== undefined) updates.avatar_url = avatar_url;
-    if (notification_email !== undefined) updates.notification_email = notification_email;
-    if (notification_sms !== undefined) updates.notification_sms = notification_sms;
+    if (avatar_url !== undefined) updates.avatarUrl = avatar_url;
+    if (notification_email !== undefined) updates.notificationEmail = notification_email;
+    if (notification_sms !== undefined) updates.notificationSms = notification_sms;
     if (theme !== undefined) updates.theme = theme;
     if (language !== undefined) updates.language = language;
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .update(updates)
-      .eq("id", user.id)
-      .select("*")
-      .single();
+    const updated = await prisma.profile.update({
+      where: { id: user.id },
+      data: updates,
+    });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ profile: data });
+    return NextResponse.json({ profile: updated });
   } catch {
     return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
   }

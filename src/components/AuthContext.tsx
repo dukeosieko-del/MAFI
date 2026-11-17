@@ -3,15 +3,16 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef, ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import { prisma } from "@/lib/supabase/admin";
 import { fetchWithTimeout } from "@/lib/client/fetchWithTimeout";
 
 interface Profile {
   id: string;
-  email: string;
-  full_name: string | null;
+  email: string | null;
+  fullName: string | null;
   phone: string | null;
-  wallet_balance: number;
-  email_verified: boolean;
+  walletBalance: number;
+  emailVerified: boolean;
   role: string;
 }
 
@@ -40,29 +41,44 @@ const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 const ACTIVITY_EVENTS = ["mousedown", "keydown", "touchstart"] as const;
 const REFRESH_DEBOUNCE_MS = 500;
 
-async function fetchProfile(supabase: ReturnType<typeof createClient>, userId: string): Promise<Profile | null> {
-  if (!supabase) return null;
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
-  if (error || !data) return null;
-  return data as Profile;
+async function fetchProfile(userId: string): Promise<Profile | null> {
+  try {
+    const data = await prisma.profile.findFirst({ where: { id: userId } });
+    if (!data) return null;
+    return {
+      id: data.id,
+      email: data.email,
+      fullName: data.fullName,
+      phone: data.phone,
+      walletBalance: Number(data.walletBalance) || 0,
+      emailVerified: data.emailVerified,
+      role: data.role,
+    } as Profile;
+  } catch {
+    return null;
+  }
 }
 
-async function ensureProfile(supabase: ReturnType<typeof createClient>, user: User): Promise<Profile | null> {
-  if (!supabase) return null;
-  let profile = await fetchProfile(supabase, user.id);
-  if (!profile) {
-    const { data, error } = await supabase.from("profiles").insert({
-      id: user.id,
-      email: user.email,
-      full_name: user.user_metadata?.full_name || null,
-      phone: user.user_metadata?.phone || null,
-      wallet_balance: 0,
-      email_verified: !!user.email_confirmed_at,
-    }).select("*").single();
-    if (error) return null;
-    profile = data as Profile;
+async function ensureProfile(user: User): Promise<Profile | null> {
+  try {
+    let profile = await fetchProfile(user.id);
+    if (!profile) {
+      profile = await prisma.profile.create({
+        data: {
+          id: user.id,
+          email: user.email ?? undefined,
+          fullName: user.user_metadata?.fullName || null,
+          phone: user.user_metadata?.phone || null,
+          walletBalance: 0 as any,
+          emailVerified: !!user.email_confirmed_at,
+          role: "user",
+        },
+      } as any) as unknown as Profile;
+    }
+    return profile;
+  } catch {
+    return null;
   }
-  return profile;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -88,26 +104,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOutRef = useRef<() => Promise<void>>(async () => {});
 
   const loadProfile = useCallback(async (userId: string) => {
-    const client = supabase;
-    if (!client) {
-      setProfile(null);
-      setWalletBalance(0);
-      setIsAdmin(false);
-      return;
-    }
-    // Fetch the actual user from auth so profile creation uses real email/metadata
-    const { data: { user: authUser } } = await client.auth.getUser();
-    const prof = await ensureProfile(client, authUser ?? ({ id: userId, email: "", user_metadata: {} } as User));
-    if (prof) {
-      setProfile(prof);
-      setWalletBalance(Number(prof.wallet_balance) || 0);
-      setIsAdmin(prof.role === "admin");
-    } else {
+    try {
+      const prof = await ensureProfile(user as any);
+      if (prof) {
+        setProfile(prof);
+        setWalletBalance(Number(prof.walletBalance) || 0);
+        setIsAdmin(prof.role === "admin");
+      } else {
+        setProfile(null);
+        setWalletBalance(0);
+        setIsAdmin(false);
+      }
+    } catch {
       setProfile(null);
       setWalletBalance(0);
       setIsAdmin(false);
     }
-  }, [supabase]);
+  }, []);
 
   const clearAllLocalCaches = useCallback(async () => {
     if (supabase) {
@@ -184,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const client = supabase;
       if (!client) return;
 
-      const { data: { subscription: sub } } = client.auth.onAuthStateChange(async (event, session) => {
+      const { data: { subscription: sub } } = client.auth.onAuthStateChange(async (_event: any, session: any) => {
         if (controller.signal.aborted) return;
         setSession(session);
         setUser(session?.user ?? null);
@@ -197,7 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setLoading(false);
 
-        if (event === "SIGNED_OUT") {
+        if (event === ("SIGNED_OUT" as any)) {
           if (typeof window !== "undefined") {
             try {
               const keysToRemove: string[] = [];
